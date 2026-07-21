@@ -1,0 +1,71 @@
+﻿<UserControl x:Class="Comics.Editor.Controls.SoundAnimsControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:Comics.Editor.Controls"
+             mc:Ignorable="d" 
+             d:DesignHeight="300" d:DesignWidth="300" Name="soundAnimsControl">
+	<ItemsControl ItemsSource="{Binding Sound.Animations}">
+		<ItemsControl.ItemsPanel>
+			<ItemsPanelTemplate>
+				<Canvas ClipToBounds="True" />
+			</ItemsPanelTemplate>
+		</ItemsControl.ItemsPanel>
+		<ItemsControl.ItemContainerStyle>
+			<Style TargetType="ContentPresenter">
+				<Setter Property="Canvas.Top">
+					<Setter.Value>
+						<MultiBinding Converter="{StaticResource soundConverter}">
+							<Binding Path="Start"/>
+							<Binding Path="DataContext.Parent.Scale" ElementName="soundAnimsControl"/>
+						</MultiBinding>
+					</Setter.Value>
+				</Setter>
+				<Setter Property="RenderTransform">
+					<Setter.Value>
+						<TranslateTransform>
+							<TranslateTransform.Y>
+								<MultiBinding Converter="{StaticResource soundConverter}" ConverterParameter="-1">
+									<Binding Path="DataContext.Parent.Scroll" ElementName="soundAnimsControl"/>
+									<Binding Path="DataContext.Parent.Scale" ElementName="soundAnimsControl"/>
+								</MultiBinding>
+							</TranslateTransform.Y>
+						</TranslateTransform>
+					</Setter.Value>
+				</Setter>
+			</Style>
+		</ItemsControl.ItemContainerStyle>
+		<ItemsControl.ItemTemplate>
+			<DataTemplate>
+				<Grid Width="{Binding ActualWidth, ElementName=soundAnimsControl}" MinHeight="{StaticResource soundSize}">
+					<Grid.Height>
+						<MultiBinding Converter="{StaticResource soundConverter}">
+							<Binding Path="Start"/>
+							<Binding Path="End"/>
+							<Binding Path="DataContext.Parent.Scale" ElementName="soundAnimsControl"/>
+						</MultiBinding>
+					</Grid.Height>
+					<ToggleButton Name="btn" Background="Tomato" Style="{StaticResource layerButton}" Click="Button_Click"/>
+					<Grid Name="thumbs" Visibility="Collapsed">
+						<Thumb VerticalAlignment="Top" Cursor="SizeAll" DragDelta="Thumb_DragDelta"/>
+						<Thumb VerticalAlignment="Center" Cursor="SizeAll" DragDelta="Thumb_DragDelta"/>
+						<Thumb VerticalAlignment="Bottom" Cursor="SizeAll" DragDelta="Thumb_DragDelta"/>
+					</Grid>
+				</Grid>
+				<DataTemplate.Triggers>
+					<DataTrigger Value="True">
+						<DataTrigger.Binding>
+							<MultiBinding Converter="{StaticResource equalsConverter}">
+								<Binding Path="DataContext.SelectedAnim" ElementName="soundAnimsControl" />
+								<Binding Path="." />
+							</MultiBinding>
+						</DataTrigger.Binding>
+						<Setter TargetName="btn" Property="IsChecked" Value="True" />
+						<Setter TargetName="thumbs" Property="Visibility" Value="Visible" />
+					</DataTrigger>
+				</DataTemplate.Triggers>
+			</DataTemplate>
+		</ItemsControl.ItemTemplate>
+	</ItemsControl>
+</UserControl>

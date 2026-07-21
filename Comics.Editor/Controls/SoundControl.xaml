@@ -1,0 +1,33 @@
+﻿<UserControl x:Class="Comics.Editor.Controls.SoundControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:Comics.Editor.Controls"
+			 xmlns:model="clr-namespace:Comics.Editor.Models"
+             mc:Ignorable="d" 
+             d:DesignHeight="300" d:DesignWidth="400" Name="soundControl">
+	<StackPanel Orientation="{Binding Orientation, ElementName=soundControl}">
+		<GroupBox Header="Sound" VerticalAlignment="Top" HorizontalAlignment="Left">
+			<Grid Margin="5" VerticalAlignment="Top" HorizontalAlignment="Left">
+				<Label Content="File:" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+				<TextBox Text="{Binding Sound.File, Mode=OneWay}" IsReadOnly="True" VerticalAlignment="Top" HorizontalAlignment="Left" Width="190" Margin="64,5,0,0" />
+				<Button Content="..." HorizontalAlignment="Left" Margin="259,3,0,0" VerticalAlignment="Top" Width="25" Command="{Binding ChangeCommand}"/>
+			</Grid>
+		</GroupBox>
+		<GroupBox Header="Animations" VerticalAlignment="Top" HorizontalAlignment="Left">
+			<Grid Margin="5" VerticalAlignment="Top" HorizontalAlignment="Left">
+				<ListBox ItemsSource="{Binding Sound.Animations}" SelectedItem="{Binding SelectedAnim}" HorizontalAlignment="Left" VerticalAlignment="Top" Width="214" Height="150" />
+				<Button Content="Add" HorizontalAlignment="Left" Margin="219,0,0,0" VerticalAlignment="Top" Width="65" Command="{Binding AddAnimCommand}"/>
+				<Button Content="Delete" HorizontalAlignment="Left" Margin="219,25,0,0" VerticalAlignment="Top" Width="65" Command="{Binding DeleteAnimCommand}"/>
+			</Grid>
+		</GroupBox>
+		<ContentControl Content="{Binding SelectedAnim}">
+			<ContentControl.Resources>
+				<DataTemplate DataType="{x:Type model:SoundAnim}">
+					<local:SoundAnimControl />
+				</DataTemplate>
+			</ContentControl.Resources>
+		</ContentControl>
+	</StackPanel>
+</UserControl>

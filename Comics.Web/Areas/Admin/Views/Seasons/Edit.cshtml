@@ -1,0 +1,45 @@
+﻿@model SeasonModel
+
+@{
+	ViewBag.Title = "Season";
+	Layout = "~/Areas/Admin/Views/Shared/_Layout.cshtml";
+}
+
+@using (Html.BeginForm(null, null, FormMethod.Post, new { @class = "form-horizontal box", enctype = "multipart/form-data" }))
+{
+	<div class="box-header with-border">
+		<h3 class="box-title">Season information</h3>
+	</div>
+	<div class="box-body">
+		@Html.ValidationSummary(true)
+		<div class="form-group">
+			@Html.LabelFor(x => x.Item.Id, new { @class = "col-sm-2 control-label" })
+			<div class="col-sm-10">
+				<p class="form-control-static">@Html.DisplayFor(x => x.Item.Id)</p>
+				@Html.HiddenFor(x => x.Item.Id)
+			</div>
+		</div>
+		<div class="form-group">
+			@Html.LabelFor(x => x.Item.Order, new { @class = "col-sm-2 control-label" })
+			<div class="col-sm-10">
+				<p class="form-control-static">@Html.DisplayFor(x => x.Item.Order)</p>
+				@Html.HiddenFor(x => x.Item.Order)
+			</div>
+		</div>
+		@Html.HiddenFor(x => x.Item.NameTokenId)
+		@Html.EditorFor(x => x.Item.NameToken, new { name = "Name", maxLength = 256 })
+		@Html.FormGroupFor(x => x.Item.Image, new { name = "imageFile" })
+		@Html.FormGroupFor(x => x.Item.Product)
+		<div class="form-group">
+			<div class="col-sm-offset-2 col-sm-10">
+				<button type="submit" class="btn btn-primary"><i class="fa fa-check"></i>&nbsp;&nbsp;Save</button>
+				<a href="@Url.Action("Index")" class="btn btn-default"><i class="fa fa-close"></i>&nbsp;&nbsp;Cancel</a>
+				@if (Model.Item.Id > 0)
+				{
+					<a href="@Url.Action("Delete", new { Model.Item.Id })" class="btn btn-danger" onclick="return confirm('Are you sure?');"><i class="fa fa-times"></i>&nbsp;&nbsp;Delete</a>
+				}
+			</div>
+		</div>
+	</div>
+}
+

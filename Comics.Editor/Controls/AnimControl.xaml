@@ -1,0 +1,31 @@
+﻿<UserControl x:Class="Comics.Editor.Controls.AnimControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:Comics.Editor.Controls"
+             mc:Ignorable="d" 
+             d:DesignHeight="300" d:DesignWidth="400">
+    <Grid>
+		<Label Content="Start" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+		<TextBox Name="txtStart" VerticalAlignment="Top" HorizontalAlignment="Left" Width="80" Margin="60,5,0,0" GotFocus="TextBox_Focus" LostFocus="TextBox_Focus">
+			<TextBox.Text>
+				<MultiBinding Converter="{StaticResource startScrollConverter}">
+					<Binding Path="Start"/>
+					<Binding Path="DataContext.Scroll" RelativeSource="{RelativeSource AncestorType={x:Type Window}}"/>
+					<Binding Path="IsFocused" RelativeSource="{RelativeSource Self}" Mode="OneWay"/>
+				</MultiBinding>
+			</TextBox.Text>
+		</TextBox>
+		<Label Content="End" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="144,0,0,0"/>
+		<TextBox Name="txtEnd" VerticalAlignment="Top" HorizontalAlignment="Left" Width="80" Margin="204,5,0,0" GotFocus="TextBox_Focus" LostFocus="TextBox_Focus">
+			<TextBox.Text>
+				<MultiBinding Converter="{StaticResource endScrollConverter}">
+					<Binding Path="End"/>
+					<Binding Path="DataContext.Scroll" RelativeSource="{RelativeSource AncestorType={x:Type Window}}"/>
+					<Binding Path="IsFocused" RelativeSource="{RelativeSource Self}" Mode="OneWay"/>
+				</MultiBinding>
+			</TextBox.Text>
+		</TextBox>
+	</Grid>
+</UserControl>

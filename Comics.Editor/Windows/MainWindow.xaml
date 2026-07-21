@@ -1,0 +1,71 @@
+﻿<Window x:Class="Comics.Editor.Windows.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+		xmlns:ctrl="clr-namespace:Comics.Editor.Controls"
+		xmlns:model="clr-namespace:Comics.Editor.Models"
+		xmlns:vm="clr-namespace:Comics.Editor.ViewModel"
+        mc:Ignorable="d"
+        Title="{Binding Title}" Height="850" Width="1300" MinHeight="600" MinWidth="800" Icon="/Images/app.ico" Closed="Window_Closed">
+	<Window.InputBindings>
+		<KeyBinding Command="{Binding SaveCommand}" Key="S" Modifiers="Control"/>
+	</Window.InputBindings>
+	<DockPanel>
+		<Menu Name="mainMenu" Height="24" DockPanel.Dock="Top">
+			<MenuItem Header="File">
+				<MenuItem Header="New">
+					<MenuItem Header="Comics" Command="{Binding OpenCommand}" CommandParameter="&lt;new comics&gt;" />
+					<MenuItem Header="Puzzle" Command="{Binding OpenCommand}" CommandParameter="&lt;new puzzle&gt;" />
+				</MenuItem>
+				<MenuItem Header="Open" Command="{Binding OpenCommand}" />
+				<MenuItem Header="Save" InputGestureText="Ctrl+S" Command="{Binding SaveCommand}" Visibility="{Binding Opened}" />
+				<Separator />
+				<MenuItem Header="Exit" Command="{Binding ExitCommand}" />
+			</MenuItem>
+			<MenuItem Header="Language" ItemsSource="{Binding Source={x:Static model:CulturesHelper.All}}" Visibility="{Binding Opened}">
+				<MenuItem.ItemContainerStyle>
+					<Style TargetType="{x:Type MenuItem}">
+						<Setter Property="IsCheckable" Value="True"/>
+						<Setter Property="IsChecked">
+							<Setter.Value>
+								<MultiBinding Converter="{StaticResource equalsConverter}" Mode="OneWay">
+									<Binding Path="DataContext.Culture" ElementName="mainMenu" />
+									<Binding Path="." />
+								</MultiBinding>
+							</Setter.Value>
+						</Setter>
+						<EventSetter Event="Click" Handler="Language_Click"/>
+					</Style>
+				</MenuItem.ItemContainerStyle>
+			</MenuItem>
+		</Menu>
+		<ContentControl Content="{Binding}">
+			<ContentControl.Resources>
+				<DataTemplate DataType="{x:Type vm:MainViewModel}">
+				</DataTemplate>
+				<DataTemplate DataType="{x:Type vm:ComicsViewModel}">
+					<ctrl:ComicsControl />
+				</DataTemplate>
+				<DataTemplate DataType="{x:Type vm:PuzzleViewModel}">
+					<ctrl:PuzzleControl />
+				</DataTemplate>
+			</ContentControl.Resources>
+		</ContentControl>
+		<StackPanel Margin="5,0,0,0" Width="300" Visibility="{Binding Opened}">
+			<ctrl:SettingsControl/>
+			<ctrl:LayersListControl/>
+			<ctrl:SoundsListControl/>
+		</StackPanel>
+		<ContentControl Margin="5,0,5,0" Content="{Binding SelectedItem}">
+			<ContentControl.Resources>
+				<DataTemplate DataType="{x:Type vm:LayerViewModel}">
+					<ctrl:LayerControl Orientation="Vertical" />
+				</DataTemplate>
+				<DataTemplate DataType="{x:Type vm:SoundViewModel}">
+					<ctrl:SoundControl Orientation="Vertical" />
+				</DataTemplate>
+			</ContentControl.Resources>
+		</ContentControl>
+	</DockPanel>
+</Window>

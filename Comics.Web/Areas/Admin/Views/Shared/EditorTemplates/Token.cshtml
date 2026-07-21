@@ -1,0 +1,51 @@
+﻿@model Token
+
+@Html.HiddenFor(model => model.Id)
+@Html.HiddenFor(model => model.Key)
+
+@{
+	var rows = ViewData.ContainsKey("rows") ? (int)ViewData["rows"] : 1;
+	var maxLength = ViewData.ContainsKey("maxlength") ? (int)ViewData["maxlength"] : 0;
+	var isImage = ViewData.ContainsKey("image") ? (bool)ViewData["image"] : false;
+	var isRequired = ViewData.ContainsKey("required") ? (bool)ViewData["required"] : false;
+
+	var htmlAttrs = new Dictionary<string, object>();
+	htmlAttrs.Add("class", "form-control");
+	if (rows > 1)
+	{
+		htmlAttrs.Add("rows", rows);
+	}
+	if (maxLength > 0)
+	{
+		htmlAttrs.Add("maxlength", maxLength);
+	}
+	if (isRequired)
+	{
+		htmlAttrs.Add("required", string.Empty);
+	}
+}
+
+@for (var i = 0; i < Model.LocalizedTokens.Count; i++)
+{
+	var name = ViewData["name"] as string;
+	name += " (" + Model.LocalizedTokens[i].Culture + ")";
+	<div class="form-group">
+		@Html.HiddenFor(model => Model.LocalizedTokens[i].Id)
+		@Html.HiddenFor(model => Model.LocalizedTokens[i].Culture)
+		@Html.LabelFor(model => Model.LocalizedTokens[i].Text, name, new { @class = "col-sm-2 control-label" })
+		<div class="col-sm-10">
+			@if (isImage)
+			{
+				@Html.EditorFor(model => Model.LocalizedTokens[i].Text, "Image", new { htmlAttributes = new { name = "imageFile" } })
+			}
+			else if (rows > 1)
+			{
+				@Html.TextAreaFor(model => Model.LocalizedTokens[i].Text, htmlAttrs)
+			}
+			else
+			{
+				@Html.TextBoxFor(model => Model.LocalizedTokens[i].Text, htmlAttrs)
+			}
+		</div>
+	</div>
+}

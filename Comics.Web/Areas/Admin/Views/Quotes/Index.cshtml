@@ -1,0 +1,61 @@
+﻿@model ListModel<QuotesParams, Quote>
+
+@{
+	ViewBag.Title = "Quotes";
+	Layout = "~/Areas/Admin/Views/Shared/_Layout.cshtml";
+}
+
+@using (Html.BeginForm(null, null, FormMethod.Post, new { @class = "form-horizontal box" }))
+{
+	<div class="box-header with-border">
+		<h3 class="box-title">Filter</h3>
+	</div>
+	<div class="box-body">
+		<div class="form-group">
+			@Html.LabelFor(x => x.Param.Status, new { @class = "col-sm-1 control-label" })
+			<div class="col-sm-5">
+				@Html.DropDownListFor(x => x.Param.Status, Model.Param.Status.ToSelectList(), new { @class = "form-control" })
+				@Html.ValidationMessageFor(x => x.Param.Status)
+			</div>
+		</div>
+	</div>
+	<div class="box-footer">
+		<button type="submit" class="btn btn-primary"><i class="fa fa-check"></i>&nbsp;&nbsp;Apply</button>
+	</div>
+}
+<div class="box">
+	<table class="table table-striped table-bordered table-hover">
+		<colgroup>
+			<col>
+			<col class="col-md-2">
+			<col class="col-md-6">
+			<col class="col-md-4">
+		</colgroup>
+		<thead>
+			<tr>
+				<th><a href="@Url.Action("Edit")" class="btn btn-xs btn-primary"><i class="fa fa-plus"></i></a></th>
+				<th>Id</th>
+				<th>Name</th>
+				<th>Publish Date</th>
+			</tr>
+		</thead>
+		<tbody>
+			@foreach (var item in Model.Items)
+			{
+				<tr>
+					<td><a href="@Url.Action("Edit", new { item.Id })" class="btn btn-xs btn-primary"><i class="fa fa-pencil"></i></a></td>
+					<td>@Html.DisplayFor(x => item.Id)</td>
+					<td>@Html.DisplayFor(x => item.Name)</td>
+					<td>@Html.DisplayFor(x => item.PublishDate)</td>
+				</tr>
+			}
+		</tbody>
+		<tfoot>
+			<tr>
+				<td colspan="4">
+					@Html.Partial("Pager", Model.Items)
+				</td>
+			</tr>
+		</tfoot>
+	</table>
+</div>

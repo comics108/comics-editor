@@ -1,0 +1,67 @@
+﻿<UserControl x:Class="Comics.Editor.Controls.LayersControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:Comics.Editor.Controls"
+			 xmlns:model="clr-namespace:Comics.Editor.Models"
+             mc:Ignorable="d" 
+             d:DesignHeight="300" d:DesignWidth="300" Name="layersControl">
+	<ItemsControl ItemsSource="{Binding Layers}">
+		<ItemsControl.ItemsPanel>
+			<ItemsPanelTemplate>
+				<Canvas />
+			</ItemsPanelTemplate>
+		</ItemsControl.ItemsPanel>
+		<ItemsControl.ItemContainerStyle>
+			<Style TargetType="ContentPresenter">
+				<Setter Property="Canvas.Left" Value="{Binding Translate.X}"/>
+				<Setter Property="Canvas.Top" Value="{Binding Translate.Y}"/>
+				<Setter Property="RenderTransformOrigin" Value="{Binding Rotate.Pivot}"/>
+				<Setter Property="RenderTransform">
+					<Setter.Value>
+						<RotateTransform Angle="{Binding Rotate.Angle}"/>
+					</Setter.Value>
+				</Setter>
+			</Style>
+		</ItemsControl.ItemContainerStyle>
+		<ItemsControl.ItemTemplate>
+			<DataTemplate>
+				<Grid RenderTransformOrigin="{Binding Scale.Pivot}" Visibility="{Binding Visibility}">
+					<ToggleButton Name="btn" Style="{StaticResource layerButton}" Click="Button_Click">
+						<Image Source="{Binding Image, Converter={StaticResource imagePathConverter}, ConverterParameter=layers, IsAsync=true}" Opacity="{Binding Alpha.Alpha}" Stretch="None" />
+					</ToggleButton>
+					<ContentControl Content="{Binding SelectedAnim}">
+						<ContentControl.Resources>
+							<DataTemplate DataType="{x:Type model:TranslateAnim}">
+								<local:TranslateControl />
+							</DataTemplate>
+							<DataTemplate DataType="{x:Type model:RotateAnim}">
+								<local:RotateControl />
+							</DataTemplate>
+							<DataTemplate DataType="{x:Type model:ScaleAnim}">
+								<local:ScaleControl />
+							</DataTemplate>
+							<DataTemplate DataType="{x:Type model:AlphaAnim}">
+							</DataTemplate>
+						</ContentControl.Resources>
+					</ContentControl>
+					<Grid.RenderTransform>
+						<ScaleTransform ScaleX="{Binding Scale.ScaleX}" ScaleY="{Binding Scale.ScaleY}" />
+					</Grid.RenderTransform>
+				</Grid>
+				<DataTemplate.Triggers>
+					<DataTrigger Value="True">
+						<DataTrigger.Binding>
+							<MultiBinding Converter="{StaticResource equalsConverter}">
+								<Binding Path="DataContext.SelectedItem" ElementName="layersControl" />
+								<Binding Path="." />
+							</MultiBinding>
+						</DataTrigger.Binding>
+						<Setter TargetName="btn" Property="IsChecked" Value="True" />
+					</DataTrigger>
+				</DataTemplate.Triggers>
+			</DataTemplate>
+		</ItemsControl.ItemTemplate>
+	</ItemsControl>
+</UserControl>

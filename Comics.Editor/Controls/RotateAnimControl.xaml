@@ -1,0 +1,20 @@
+﻿<UserControl x:Class="Comics.Editor.Controls.RotateAnimControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:Comics.Editor.Controls"
+             mc:Ignorable="d" 
+             d:DesignHeight="300" d:DesignWidth="400">
+	<GroupBox Header="{Binding Type, Converter={StaticResource enumConverter}}" VerticalAlignment="Top" HorizontalAlignment="Left">
+		<Grid Margin="5" VerticalAlignment="Top" HorizontalAlignment="Left">
+			<local:AnimControl HorizontalAlignment="Left" VerticalAlignment="Top"/>
+			<Label Content="Center X" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,23,0,0"/>
+			<TextBox Text="{Binding PivotX}" VerticalAlignment="Top" HorizontalAlignment="Left" Width="80" Margin="60,28,0,0" />
+			<Label Content="Center Y" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="144,23,0,0"/>
+			<TextBox Text="{Binding PivotY}" VerticalAlignment="Top" HorizontalAlignment="Left" Width="80" Margin="204,28,0,0" />
+			<Label Content="Angle" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,46,0,0"/>
+			<TextBox Text="{Binding Angle}" VerticalAlignment="Top" HorizontalAlignment="Left" Width="80" Margin="60,51,0,0" />
+		</Grid>
+	</GroupBox>
+</UserControl>

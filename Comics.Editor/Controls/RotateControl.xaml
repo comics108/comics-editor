@@ -1,0 +1,35 @@
+﻿<UserControl x:Class="Comics.Editor.Controls.RotateControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:Comics.Editor.Controls"
+             mc:Ignorable="d" 
+             d:DesignHeight="300" d:DesignWidth="300">
+    <Grid Name="grid">
+		<Thumb HorizontalAlignment="Left" VerticalAlignment="Top" Cursor="Hand" DragDelta="Thumb_DragDelta" />
+		<Thumb HorizontalAlignment="Right" VerticalAlignment="Top" Cursor="Hand" DragDelta="Thumb_DragDelta" />
+		<Thumb HorizontalAlignment="Right" VerticalAlignment="Bottom" Cursor="Hand" DragDelta="Thumb_DragDelta" />
+		<Thumb HorizontalAlignment="Left" VerticalAlignment="Bottom" Cursor="Hand" DragDelta="Thumb_DragDelta" />
+		<Thumb Name="pivotThumb" HorizontalAlignment="Left" VerticalAlignment="Top" Background="White" Cursor="SizeAll" DragDelta="PivotThumb_DragDelta">
+			<Thumb.RenderTransform>
+				<TranslateTransform>
+					<TranslateTransform.X>
+						<MultiBinding Converter="{StaticResource pivotConverter}">
+							<Binding Path="PivotX"/>
+							<Binding Path="ActualWidth" ElementName="grid"/>
+							<Binding Path="ActualWidth" ElementName="pivotThumb"/>
+						</MultiBinding>
+					</TranslateTransform.X>
+					<TranslateTransform.Y>
+						<MultiBinding Converter="{StaticResource pivotConverter}">
+							<Binding Path="PivotY"/>
+							<Binding Path="ActualHeight" ElementName="grid"/>
+							<Binding Path="ActualHeight" ElementName="pivotThumb"/>
+						</MultiBinding>
+					</TranslateTransform.Y>
+				</TranslateTransform>
+			</Thumb.RenderTransform>
+		</Thumb>
+	</Grid>
+</UserControl>

@@ -1,0 +1,24 @@
+﻿@model NotificationModel
+
+@{
+	ViewBag.Title = "Notification";
+	Layout = "~/Areas/Admin/Views/Shared/_Layout.cshtml";
+}
+
+@using (Html.BeginForm(null, null, FormMethod.Post, new { @class = "form-horizontal box" }))
+{
+	<div class="box-header with-border">
+		<h3 class="box-title">Send notification</h3>
+	</div>
+	<div class="box-body">
+		@Html.ValidationSummary(true)
+		@Html.FormGroupFor(x => x.Type, Model.Type.ToSelectList())
+		@Html.EditorFor(x => x.TitleToken, new { name = "Title", maxLength = 64, required = true })
+		@Html.EditorFor(x => x.TextToken, new { name = "Text", maxLength = 256, required = true })
+		<div class="form-group">
+			<div class="col-sm-offset-2 col-sm-10">
+				<button type="submit" class="btn btn-primary"><i class="fa fa-check"></i>&nbsp;&nbsp;Send</button>
+			</div>
+		</div>
+	</div>
+}
