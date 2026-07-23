@@ -1,9 +1,0 @@
-﻿@model DateTime?
-
-@{
-	var htmlAttributes = Html.ObjectToHtmlAttributes(ViewData["htmlAttributes"]);
-	htmlAttributes["type"] = "date";
-	var format = (Request.UserAgent != null && (Request.UserAgent.Contains("Chrome") || Request.UserAgent.Contains("Firefox"))) ? "{0:yyyy-MM-dd}" : ViewData.ModelMetadata.DisplayFormatString;
-}
-
-@Html.TextBoxFor(x => x, format, htmlAttributes)

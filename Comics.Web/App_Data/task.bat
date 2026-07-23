@@ -1,3 +1,0 @@
-schtasks /create /tn "Mahabharata Quotes" /tr "powershell -ExecutionPolicy unrestricted -Command \"(New-Object Net.WebClient).DownloadString(\\\"https://app.mbharata.com/api/Admin/DayQuotes\\\")\"" /sc DAILY /st 10:00:00 /ru System
-schtasks /create /tn "Mahabharata Puzzle" /tr "powershell -ExecutionPolicy unrestricted -Command \"(New-Object Net.WebClient).DownloadString(\\\"https://app.mbharata.com/api/Admin/Puzzle\\\")\"" /sc DAILY /st 11:00:00 /ru System
-@pause
