@@ -2,5 +2,6 @@
   <Project Path="Comics.Core/Comics.Core.csproj" />
   <Project Path="Comics.Editor.Flutter/Comics.Editor.Flutter.csproj" />
   <Project Path="Comics.Editor.Headless/Comics.Editor.Headless.csproj" />
+  <Project Path="Comics.Editor.Native/Comics.Editor.Native.csproj" />
   <Project Path="Comics.Editor/Comics.Editor.csproj" />
 </Solution>

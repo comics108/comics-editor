@@ -1,9 +1,14 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
+import '../../bridge/documents.dart';
 import '../controller.dart';
 import '../models.dart';
 import '../theme.dart';
 import 'common.dart';
+
+bool get _isMobile => Platform.isIOS || Platform.isAndroid;
 
 /// New / Open / Error dialogs — same actions as the WPF menu, no new features.
 
@@ -61,16 +66,24 @@ Future<void> showOpenDialog(BuildContext context) async {
         title: 'Open',
         width: 480,
         actions: [
-          // v2.9 обвязка: Browse… открывает реальный файл через headless-ядро.
+          // v2.9 обвязка: Browse… — системный диалог выбора файла (file_picker).
           HsButton('Browse…', variant: HsVariant.secondary, onTap: () async {
             Navigator.pop(ctx);
-            await showOpenPathDialog(context);
+            final ok = await c.openWithDialog();
+            if (!ok && c.coreError != null && context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                behavior: SnackBarBehavior.floating,
+                content: Text('Open failed: ${c.coreError}'),
+              ));
+            }
           }),
           const Spacer(),
-          HsButton('Open', onTap: () {
-            c.openRecent(EditorController.recents[sel]);
-            Navigator.pop(ctx);
-          }),
+          // v2.9: на мобильных локальный документ открывается тапом по строке.
+          if (!_isMobile)
+            HsButton('Open', onTap: () {
+              c.openRecent(EditorController.recents[sel]);
+              Navigator.pop(ctx);
+            }),
         ],
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -90,69 +103,46 @@ Future<void> showOpenDialog(BuildContext context) async {
               ]),
             ),
             const SizedBox(height: 8),
-            for (var i = 0; i < EditorController.recents.length; i++)
-              _RecentRow(
-                file: EditorController.recents[i],
-                selected: i == sel,
-                onTap: () => setState(() => sel = i),
-              ),
-          ],
-        ),
-      ),
-    ),
-  );
-}
-
-// v2.9 обвязка: открытие реального .comics/.puzzle по пути через headless-ядро.
-Future<void> showOpenPathDialog(BuildContext context) async {
-  final c = EditorScope.of(context);
-  final pathController = TextEditingController();
-  String? error;
-  await showDialog<void>(
-    context: context,
-    builder: (ctx) => StatefulBuilder(
-      builder: (ctx, setState) => _DialogShell(
-        title: 'Open file',
-        width: 560,
-        actions: [
-          HsButton('Cancel',
-              variant: HsVariant.secondary, onTap: () => Navigator.pop(ctx)),
-          const Spacer(),
-          HsButton('Open', onTap: () async {
-            final ok = await c.openPath(pathController.text.trim());
-            if (!ctx.mounted) return;
-            if (ok) {
-              Navigator.pop(ctx);
-            } else {
-              setState(() => error = c.coreError ?? 'Failed to open file');
-            }
-          }),
-        ],
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TextField(
-              controller: pathController,
-              autofocus: true,
-              decoration: const InputDecoration(
-                hintText: '/path/to/file.comics',
-                border: OutlineInputBorder(),
-              ),
-              onSubmitted: (_) {},
-            ),
-            if (!c.coreAvailable) ...[
-              const SizedBox(height: 10),
-              const Text(
-                'Ядро недоступно: соберите его командой tool/build_headless.sh',
-                style: TextStyle(color: Hs.textSecondary, fontSize: 13),
-              ),
-            ],
-            if (error != null) ...[
-              const SizedBox(height: 10),
-              Text(error!,
-                  style: const TextStyle(color: Hs.danger, fontSize: 13)),
-            ],
+            // v2.9: на мобильных — реальные документы из песочницы приложения.
+            if (_isMobile)
+              FutureBuilder<List<FileSystemEntity>>(
+                future: DocumentsStore.list(),
+                builder: (ctx2, snap) {
+                  final files = snap.data ?? const <FileSystemEntity>[];
+                  if (files.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Text('No local documents yet — use Browse…',
+                          style:
+                              TextStyle(color: Hs.textSecondary, fontSize: 14)),
+                    );
+                  }
+                  return Column(children: [
+                    for (final f in files)
+                      _RecentRow(
+                        file: RecentFile(
+                          f.path.split('/').last,
+                          f.path.endsWith('.puzzle')
+                              ? DocType.puzzle
+                              : DocType.comics,
+                          'Local document',
+                        ),
+                        selected: false,
+                        onTap: () async {
+                          Navigator.pop(ctx);
+                          await c.openPath(f.path);
+                        },
+                      ),
+                  ]);
+                },
+              )
+            else
+              for (var i = 0; i < EditorController.recents.length; i++)
+                _RecentRow(
+                  file: EditorController.recents[i],
+                  selected: i == sel,
+                  onTap: () => setState(() => sel = i),
+                ),
           ],
         ),
       ),

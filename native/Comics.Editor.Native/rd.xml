@@ -1,0 +1,10 @@
+<!-- SDD sdd-comics-editor-v2.9-android-ios: корни reflection для NativeAOT.
+     Newtonsoft.Json сериализует модели через reflection и резолвит $type
+     (TypeNameHandling.Auto) по имени — без этих корней NativeAOT срежет
+     типы/члены и десериализация молча вернёт пустой документ. -->
+<Directives xmlns="http://schemas.microsoft.com/netfx/2013/01/metadata">
+  <Application>
+    <Assembly Name="Comics.Editor" Dynamic="Required All" />
+    <Assembly Name="Newtonsoft.Json" Dynamic="Required All" />
+  </Application>
+</Directives>

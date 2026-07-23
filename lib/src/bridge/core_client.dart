@@ -2,19 +2,24 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'comics_core.dart';
+
 /// NDJSON-клиент headless-ядра (`native/Comics.Editor.Headless`).
 ///
 /// Ядро — self-contained бинарник `Comics.Editor`, публикуемый скриптом
 /// `tool/build_headless.sh`. Поиск бинарника: переменная окружения
 /// `COMICS_CORE_PATH` → ресурсы платформенного бандла → dev-публикация в
 /// `native/Comics.Editor.Headless/publish/<rid>/`.
-class CoreClient {
+class CoreClient implements ComicsCore {
   Process? _process;
   StreamSubscription<String>? _stdoutSub;
   int _nextId = 0;
   final Map<int, Completer<Map<String, dynamic>>> _pending = {};
 
   bool get isRunning => _process != null;
+
+  @override
+  bool get isAvailable => resolveBinary() != null;
 
   /// Возвращает null, если бинарник ядра не найден.
   static String? resolveBinary() {
@@ -100,6 +105,7 @@ class CoreClient {
     _pending.clear();
   }
 
+  @override
   Future<dynamic> call(String method,
       [Map<String, dynamic>? params,
       Duration timeout = const Duration(seconds: 60)]) async {
@@ -121,6 +127,7 @@ class CoreClient {
     return response['result'];
   }
 
+  @override
   Future<void> dispose() async {
     _process?.kill();
     _onExit();

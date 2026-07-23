@@ -1,7 +1,11 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
-// v2.9 обвязка: headless-ядро (Comics.Editor.Headless) для реальных open/save.
-import '../bridge/core_client.dart';
+// v2.9 обвязка: ядро (процесс на десктопе / NativeAOT+FFI на мобильных).
+import '../bridge/comics_core.dart';
+import '../bridge/documents.dart';
 import '../bridge/models_mapping.dart';
 import 'models.dart';
 
@@ -44,11 +48,11 @@ class EditorController extends ChangeNotifier {
   ];
 
   // ---------- v2.9: реальные файлы через headless-ядро ----------
-  final CoreClient core = CoreClient();
+  final ComicsCore core = createComicsCore();
   CoreDocument? coreDoc;
   String? coreError;
 
-  bool get coreAvailable => CoreClient.resolveBinary() != null;
+  bool get coreAvailable => core.isAvailable;
 
   /// Открывает .comics/.puzzle через Comics.Editor.Headless.
   Future<bool> openPath(String path) async {
@@ -70,13 +74,68 @@ class EditorController extends ChangeNotifier {
     }
   }
 
+  /// Открытие через системный диалог (file_picker, все платформы).
+  Future<bool> openWithDialog() async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['comics', 'puzzle'],
+    );
+    final path = result?.files.single.path;
+    if (path == null) return false; // отмена — не ошибка
+    return openPath(path);
+  }
+
+  /// Export / Save As: системный диалог места сохранения.
+  /// Desktop: диалог возвращает путь → ядро пишет по нему.
+  /// Mobile: ядро пишет во временный файл → байты → системный диалог (SAF/Files).
+  Future<bool> exportWithDialog() async {
+    final document = coreDoc;
+    if (document == null) return false;
+    final fileName = document.doc.name.isEmpty ? 'untitled.comics' : document.doc.name;
+    try {
+      if (Platform.isIOS || Platform.isAndroid) {
+        final tempPath =
+            '${Directory.systemTemp.createTempSync('comics_export').path}/$fileName';
+        await core.call('saveComics', {
+          'path': tempPath,
+          'comics': comicsToCore(document),
+        });
+        final saved = await FilePicker.saveFile(
+          fileName: fileName,
+          type: FileType.custom,
+          allowedExtensions: const ['comics', 'puzzle'],
+          bytes: await File(tempPath).readAsBytes(),
+        );
+        return saved != null;
+      }
+      final path = await FilePicker.saveFile(
+        fileName: fileName,
+        type: FileType.custom,
+        allowedExtensions: const ['comics', 'puzzle'],
+      );
+      if (path == null) return false; // отмена
+      return saveToPath(path);
+    } on Exception catch (e) {
+      coreError = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
   /// Сохраняет текущий документ (открытый через [openPath]) в .comics/.puzzle.
+  /// На мобильных без явного пути пишет в песочницу приложения (решение Q4):
+  /// системный picker отдаёт временную копию, писать в неё бессмысленно.
   Future<bool> saveToPath([String? path]) async {
     final document = coreDoc;
     if (document == null) return false;
     try {
+      var target = path ?? document.path;
+      if (path == null && (Platform.isIOS || Platform.isAndroid)) {
+        target = await DocumentsStore.pathFor(document.doc.name);
+        document.path = target;
+      }
       await core.call('saveComics', {
-        'path': path ?? document.path,
+        'path': target,
         'comics': comicsToCore(document),
       });
       if (path != null) document.path = path;

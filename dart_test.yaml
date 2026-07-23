@@ -1,0 +1,7 @@
+# Интеграционные тесты ядра (процесс и FFI) делят один TempFolder
+# (~/Library/Application Support/"Comics Editor\Temp" — константа в C#-коде),
+# поэтому suite-ы выполняются последовательно.
+concurrency: 1
+
+tags:
+  core: # тесты, требующие опубликованного ядра (build_headless.sh / build_native.sh)

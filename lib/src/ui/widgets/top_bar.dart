@@ -92,6 +92,10 @@ class TopBar extends StatelessWidget {
               variant: HsVariant.save,
               height: ff.controlH,
               onTap: () => _saved(context)),
+          // v2.9 обвязка: Export / Save As через системный диалог (file_picker).
+          const SizedBox(width: 8),
+          HsIconButton(Icons.ios_share,
+              size: ff.iconBtn, onTap: () => _export(context)),
           if (!compact) ...[
             const SizedBox(width: 14),
             const _Divider(),
@@ -127,6 +131,19 @@ class TopBar extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  // v2.9 обвязка: Export/Save As через системный диалог.
+  Future<void> _export(BuildContext context) async {
+    final c = EditorScope.of(context);
+    if (c.coreDoc == null) return;
+    final ok = await c.exportWithDialog();
+    if (!context.mounted || !ok && c.coreError == null) return; // отмена — тихо
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: Hs.gray800,
+      content: Text(ok ? 'Exported ${c.doc!.name}' : 'Export failed: ${c.coreError}'),
+    ));
   }
 
   // v2.9 обвязка: если документ открыт из файла — реальное сохранение через

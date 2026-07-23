@@ -1,0 +1,1 @@
+/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Editor.Native/publish/osx-arm64/Comics.Editor.dylib
