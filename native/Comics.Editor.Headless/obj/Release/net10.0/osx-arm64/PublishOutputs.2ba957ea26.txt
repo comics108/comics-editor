@@ -1,0 +1,2 @@
+/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Editor.Headless/publish/osx-arm64/Comics.Editor.pdb
+/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Editor.Headless/publish/osx-arm64/Comics.Editor

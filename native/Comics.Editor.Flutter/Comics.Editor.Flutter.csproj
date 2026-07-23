@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- SDD sdd-comics-editor-v2.9, Task 4.1 (обвязка): слой между Flutter (через C++-плагин
+       windows/editor_plugin) и существующим WPF-редактором. По образцу
+       libs/comics_editor/flutter_comics_editor, но против реального API v2.9. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <OutputType>Library</OutputType>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>Comics.Editor.Flutter</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Comics.Editor/Comics.Editor.csproj" />
+  </ItemGroup>
+
+</Project>

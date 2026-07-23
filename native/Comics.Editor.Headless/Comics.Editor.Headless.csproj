@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- SDD sdd-comics-editor-v2.9, Task 3.1 (обвязка): headless-хост для macOS/Linux.
+       Линкует НЕ-UI исходники Comics.Editor как есть (<Compile Include>, файлы не перемещаются
+       и не изменяются) и отдаёт open/save комиксов Flutter-приложению по NDJSON через stdio.
+       Публикуется self-contained: см. tool/build_headless.sh -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Comics.Editor.Headless</RootNamespace>
+    <!-- ВАЖНО: имя сборки должно быть ровно "Comics.Editor" — data.json хранит
+         "$type": "Comics.Editor.Models.*, Comics.Editor" (TypeNameHandling.Auto),
+         иначе десериализация анимаций молча падает в null. -->
+    <AssemblyName>Comics.Editor</AssemblyName>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="log4net" Version="2.0.8" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
+  <!-- Линкованные исходники Comics.Editor (канонический код, без изменений) -->
+  <ItemGroup>
+    <Compile Include="../Comics.Editor/Models/*.cs" LinkBase="Linked/Models" />
+    <Compile Include="../Comics.Editor/Utils/FileManager.cs" Link="Linked/Utils/FileManager.cs" />
+    <Compile Include="../Comics.Editor/Utils/ZipUtils.cs" Link="Linked/Utils/ZipUtils.cs" />
+    <Compile Include="../Comics.Editor/IWS/Utils/Extensions.cs" Link="Linked/IWS/Extensions.cs" />
+    <Compile Include="../Comics.Editor/IWS/Utils/Logger.cs" Link="Linked/IWS/Logger.cs" />
+    <Compile Include="../Comics.Editor/IWS/Utils/SymmetricCrypt.cs" Link="Linked/IWS/SymmetricCrypt.cs" />
+    <Compile Include="../Comics.Editor/IWS/Utils/ImageMagick.cs" Link="Linked/IWS/ImageMagick.cs" />
+  </ItemGroup>
+
+</Project>

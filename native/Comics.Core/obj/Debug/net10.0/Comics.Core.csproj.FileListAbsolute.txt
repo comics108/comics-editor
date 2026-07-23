@@ -1,0 +1,13 @@
+/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Core/obj/Debug/net10.0/Comics.Core.csproj.AssemblyReference.cache
+/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Core/obj/Debug/net10.0/Comics.Core.GeneratedMSBuildEditorConfig.editorconfig
+/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Core/obj/Debug/net10.0/Comics.Core.csproj.CoreCompileInputs.cache
+/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Core/obj/Debug/net10.0/Comics.Core.sourcelink.json
+/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Core/bin/Debug/net10.0/Comics.Core.deps.json
+/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Core/bin/Debug/net10.0/Comics.Core.runtimeconfig.json
+/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Core/bin/Debug/net10.0/Comics.Core.dll
+/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Core/bin/Debug/net10.0/Comics.Core.pdb
+/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Core/obj/Debug/net10.0/Comics.Core.dll
+/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Core/obj/Debug/net10.0/refint/Comics.Core.dll
+/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Core/obj/Debug/net10.0/Comics.Core.pdb
+/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Core/obj/Debug/net10.0/Comics.Core.genruntimeconfig.cache
+/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Core/obj/Debug/net10.0/ref/Comics.Core.dll

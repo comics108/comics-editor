@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- SDD sdd-comics-editor-v2.9, Task 1.2: минорный ретаргет старого csproj (net452, packages.config)
+       на .NET 10 SDK-style. Исходный код (.cs/.xaml) не изменён. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <OutputType>WinExe</OutputType>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>Comics.Editor</RootNamespace>
+    <AssemblyName>Comics.Editor</AssemblyName>
+    <ApplicationIcon>Images\app.ico</ApplicationIcon>
+    <!-- Старый код: без nullable и implicit usings -->
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <!-- Properties/AssemblyInfo.cs остаётся как есть -->
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <!-- Позволяет компилировать Windows-таргет на macOS/Linux (без запуска) -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <Configurations>Debug;Release;Live</Configurations>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="log4net" Version="2.0.8" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Images\app.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\Utils\7za.exe" Link="Utils\7za.exe" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Utils\ImageMagick\colors.xml" Link="Utils\ImageMagick\colors.xml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Utils\ImageMagick\magic.xml" Link="Utils\ImageMagick\magic.xml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Utils\ImageMagick\magick.exe" Link="Utils\ImageMagick\magick.exe" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

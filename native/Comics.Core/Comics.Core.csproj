@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- SDD sdd-comics-editor-v2.9, Task 1.3: минорный ретаргет старого csproj (net452, packages.config)
+       на .NET 10 SDK-style. Исходный код не изменён. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Comics.Core</RootNamespace>
+    <AssemblyName>Comics.Core</AssemblyName>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="EntityFramework" Version="6.5.1" />
+    <PackageReference Include="log4net" Version="2.0.8" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="System.Configuration.ConfigurationManager" Version="10.0.0" />
+    <PackageReference Include="System.Drawing.Common" Version="10.0.0" />
+  </ItemGroup>
+
+  <!-- PushManager.cs исключён из компиляции (код сохранён как есть):
+       PushSharp 4.0.10 существует только для net45 и не устанавливается на .NET 10.
+       Редактор push-уведомления не использует; при возврате серверного сценария — решить отдельно.
+       System.Web-типы для ImageManager/ImageMagick предоставляет Compat/SystemWebCompat.cs (shim). -->
+  <ItemGroup>
+    <Compile Remove="Utils\PushManager.cs" />
+    <None Include="Utils\PushManager.cs" />
+  </ItemGroup>
+
+</Project>
