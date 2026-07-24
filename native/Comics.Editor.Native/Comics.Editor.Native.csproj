@@ -6,10 +6,6 @@
        Публикация: tool/build_native.sh (NativeLib задаётся при publish). -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <!-- iOS-публикация: tool/build_native.sh ios → -p:IncludeIos=true -f net10.0-ios
-         (требует установленного workload: sudo dotnet workload install ios) -->
-    <TargetFrameworks Condition="'$(IncludeIos)' == 'true'">net10.0;net10.0-ios</TargetFrameworks>
-    <SupportedOSPlatformVersion Condition="'$(TargetFramework)' == 'net10.0-ios'">13.0</SupportedOSPlatformVersion>
     <RootNamespace>Comics.Editor.Headless</RootNamespace>
     <!-- ВАЖНО: как и у Headless — data.json содержит "$type": "..., Comics.Editor" -->
     <AssemblyName>Comics.Editor</AssemblyName>

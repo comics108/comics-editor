@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Comics.Editor.Flutter")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+94253510865f03aef95a1f746ad411f6d0743669")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+bf4ba804881504637ab54d10b4d7b320f78f4fd1")]
 [assembly: System.Reflection.AssemblyProductAttribute("Comics.Editor.Flutter")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Comics.Editor.Flutter")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

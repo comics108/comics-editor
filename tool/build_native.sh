@@ -44,13 +44,19 @@ case "${1:-osx}" in
     ;;
 
   ios)
-    # Требуется: sudo dotnet workload install ios
-    dotnet publish "$proj" -c Release -r ios-arm64 -f net10.0-ios \
-      -p:IncludeIos=true -p:NativeLib=Static -p:PublishAot=true \
-      -o "$out_base/ios-arm64"
-    mkdir -p ios/ComicsCore
-    cp "$out_base/ios-arm64/Comics.Editor.a" ios/ComicsCore/libComicsCore.a
-    echo "Copied: ios/ComicsCore/libComicsCore.a"
+    # ЗАБЛОКИРОВАНО (проверено эмпирически, .NET 10 SDK 10.0.302 + `dotnet workload
+    # install ios`): CoreCLR NativeAOT (ILCompiler, нужен для UnmanagedCallersOnly
+    # C-экспортов comics_call/comics_free) НЕ поддерживает RID ios-arm64 в публично
+    # доступной поставке .NET 10 — `dotnet publish -r ios-arm64 -p:PublishAot=true`
+    # на TargetFramework=net10.0 падает с NETSDK1203 даже после установки workload.
+    # `dotnet workload install ios` ставит ДРУГОЙ пайплайн — Mono-AOT для приложений
+    # (Microsoft.iOS.Sdk, TargetFramework=net10.0-ios) — им нельзя собрать голую
+    # статическую библиотеку с нужными C-экспортами; отдельного пакета
+    # Microsoft.DotNet.ILCompiler.LLVM (cross-компилятор для Apple-mobile RID) на
+    # публичном nuget.org нет. Т.е. это архитектурный вопрос (см. Open Questions в
+    # 01-requirements.md flows/sdd-comics-editor-v2.9-android-ios), а не команда сборки.
+    echo "iOS NativeAOT недоступен в текущей поставке .NET 10 — см. README (раздел iOS)" >&2
+    exit 1
     ;;
 
   *)

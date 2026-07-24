@@ -1,0 +1,62 @@
+# Публикация Comics Editor в App Store / TestFlight.
+# Запуск: .github/workflows/release.yml (job release-ios), вручную через
+# workflow_dispatch. Локально: `cd ios && bundle exec fastlane ios deploy lane:testflight`
+# (нужны те же переменные окружения, что использует CI — см. release.yml).
+#
+# Код-сайнинг — через fastlane match (readonly): сертификаты/профили хранятся в
+# отдельном приватном git-репозитории (см. https://docs.fastlane.tools/actions/match/).
+#
+# Перед первым реальным релизом:
+#   1. Сменить PRODUCT_BUNDLE_IDENTIFIER в ios/Runner.xcodeproj (сейчас — плейсхолдер
+#      com.example.comicsEditor) и IOS_BUNDLE_ID на реальный bundle id; создать App ID
+#      в Apple Developer Portal и приложение в App Store Connect.
+#   2. Завести приватный репозиторий для match и один раз выполнить
+#      `fastlane match appstore` локально, чтобы создать сертификаты/профили.
+#   3. Настроить секреты в GitHub (Settings → Secrets and variables → Actions):
+#        ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_CONTENT — App Store Connect API key
+#          (App Store Connect → Users and Access → Keys; ASC_KEY_CONTENT — .p8 в base64)
+#        MATCH_GIT_URL, MATCH_PASSWORD — доступ к репозиторию сертификатов match
+#        APPLE_TEAM_ID, ASC_TEAM_ID     — team id разработчика и App Store Connect
+#      и переменную IOS_BUNDLE_ID (реальный bundle id).
+
+default_platform(:ios)
+
+platform :ios do
+  desc "Собрать release-архив и опубликовать в TestFlight / App Store"
+  lane :deploy do |options|
+    distribution_lane = options[:lane] || "testflight"
+
+    api_key = app_store_connect_api_key(
+      key_id: ENV["ASC_KEY_ID"],
+      issuer_id: ENV["ASC_ISSUER_ID"],
+      key_content: ENV["ASC_KEY_CONTENT"],
+      is_key_content_base64: true
+    )
+
+    match(
+      type: "appstore",
+      readonly: true,
+      api_key: api_key
+    )
+
+    build_app(
+      workspace: "Runner.xcworkspace",
+      scheme: "Runner",
+      export_method: "app-store"
+    )
+
+    if distribution_lane == "appstore"
+      upload_to_app_store(
+        api_key: api_key,
+        skip_screenshots: true,
+        skip_metadata: true,
+        force: true
+      )
+    else
+      upload_to_testflight(
+        api_key: api_key,
+        skip_waiting_for_build_processing: true
+      )
+    end
+  end
+end

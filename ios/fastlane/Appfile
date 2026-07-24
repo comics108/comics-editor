@@ -1,0 +1,6 @@
+# До первой публикации замените на реальный bundle id (см. ios/Runner.xcodeproj
+# PRODUCT_BUNDLE_IDENTIFIER, сейчас — плейсхолдер com.example.comicsEditor).
+app_identifier(ENV["IOS_BUNDLE_ID"] || "com.example.comicsEditor")
+apple_id(ENV["APPLE_ID"])
+itc_team_id(ENV["ASC_TEAM_ID"])   # App Store Connect team id
+team_id(ENV["APPLE_TEAM_ID"])     # Developer Portal team id

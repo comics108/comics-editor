@@ -1,0 +1,122 @@
+name: Release to stores
+
+# Публикация в Google Play / App Store через fastlane — отдельно от build.yml.
+# release-android и release-ios не зависят друг от друга (нет `needs`), поэтому
+# идут параллельно и падение одной не отменяет и не блокирует другую.
+#
+# Требует секретов/переменных в настройках репозитория (Settings → Secrets and
+# variables → Actions) — см. комментарии в android/fastlane/Fastfile и
+# ios/fastlane/Fastfile. Без них соответствующая job упадёт на шаге fastlane —
+# это ожидаемо, пока реальные credentials не настроены.
+
+on:
+  workflow_dispatch:
+    inputs:
+      android_track:
+        description: "Google Play track"
+        required: false
+        default: internal
+        type: choice
+        options: [internal, alpha, beta, production]
+      ios_lane:
+        description: "iOS distribution"
+        required: false
+        default: testflight
+        type: choice
+        options: [testflight, appstore]
+
+concurrency:
+  group: release-${{ github.workflow }}
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION: "3.44.6"
+  DOTNET_VERSION: "10.0.x"
+
+jobs:
+  release-android:
+    name: Google Play (Android)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+          working-directory: android
+      - name: Install Android NDK
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;27.0.12077973"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
+      - run: flutter pub get
+      - name: Build NativeAOT core (.so)
+        run: tool/build_native.sh android
+      - name: Configure release signing
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 secret is not set — see android/fastlane/Fastfile"
+            exit 1
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > app/release.keystore
+          cat > key.properties <<EOF
+          storeFile=release.keystore
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          keyPassword=$ANDROID_KEY_PASSWORD
+          EOF
+      - name: Deploy via fastlane
+        working-directory: android
+        env:
+          PLAY_STORE_JSON_KEY: ${{ secrets.PLAY_STORE_JSON_KEY }}
+          ANDROID_PACKAGE_NAME: ${{ vars.ANDROID_PACKAGE_NAME }}
+        run: bundle exec fastlane android deploy track:${{ github.event.inputs.android_track || 'internal' }}
+
+  release-ios:
+    name: App Store (iOS)
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+          working-directory: ios
+      # iOS не использует .NET-ядро (см. build.yml) — только Flutter pub get нужен.
+      - run: flutter pub get
+      - name: Deploy via fastlane
+        working-directory: ios
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_CONTENT: ${{ secrets.ASC_KEY_CONTENT }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_TEAM_ID: ${{ secrets.ASC_TEAM_ID }}
+          IOS_BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID }}
+        run: bundle exec fastlane ios deploy lane:${{ github.event.inputs.ios_lane || 'testflight' }}

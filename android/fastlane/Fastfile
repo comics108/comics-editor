@@ -1,0 +1,37 @@
+# Публикация Comics Editor в Google Play.
+# Запуск: .github/workflows/release.yml (job release-android), вручную через
+# workflow_dispatch. Локально: `cd android && bundle exec fastlane android deploy track:internal`
+# (нужны те же переменные окружения, что использует CI — см. release.yml).
+#
+# Перед первым реальным релизом:
+#   1. Сменить applicationId в android/app/build.gradle.kts и ANDROID_PACKAGE_NAME
+#      (сейчас — плейсхолдер com.example.comics_editor) на реальный package name.
+#   2. Создать приложение в Google Play Console, один раз загрузить .aab вручную
+#      (Google Play не разрешает первую публикацию через API).
+#   3. Настроить секреты в GitHub (Settings → Secrets and variables → Actions):
+#        PLAY_STORE_JSON_KEY      — service account JSON (Play Console → API access)
+#        ANDROID_KEYSTORE_BASE64  — release-keystore, закодированный в base64
+#        ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+#      и переменную ANDROID_PACKAGE_NAME (реальный applicationId).
+
+default_platform(:android)
+
+platform :android do
+  desc "Собрать release App Bundle и опубликовать в Google Play"
+  lane :deploy do |options|
+    track = options[:track] || "internal"
+
+    gradle(
+      task: "bundle",
+      build_type: "Release"
+    )
+
+    upload_to_play_store(
+      track: track,
+      aab: "app/build/outputs/bundle/release/app-release.aab",
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+  end
+end

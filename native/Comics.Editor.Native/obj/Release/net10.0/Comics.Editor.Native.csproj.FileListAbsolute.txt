@@ -1,0 +1,13 @@
+/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Editor.Native/bin/Release/net10.0/Comics.Editor.deps.json
+/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Editor.Native/bin/Release/net10.0/Comics.Editor.dll
+/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Editor.Native/bin/Release/net10.0/Comics.Editor.pdb
+/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Editor.Native/obj/Release/net10.0/Comics.Editor.Native.csproj.AssemblyReference.cache
+/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Editor.Native/obj/Release/net10.0/Comics.Editor.Native.GeneratedMSBuildEditorConfig.editorconfig
+/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Editor.Native/obj/Release/net10.0/Comics.Editor.Native.AssemblyInfoInputs.cache
+/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Editor.Native/obj/Release/net10.0/Comics.Editor.Native.AssemblyInfo.cs
+/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Editor.Native/obj/Release/net10.0/Comics.Editor.Native.csproj.CoreCompileInputs.cache
+/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Editor.Native/obj/Release/net10.0/Comics.Editor.Native.sourcelink.json
+/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Editor.Native/obj/Release/net10.0/Comics.Editor.dll
+/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Editor.Native/obj/Release/net10.0/refint/Comics.Editor.dll
+/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Editor.Native/obj/Release/net10.0/Comics.Editor.pdb
+/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Editor.Native/obj/Release/net10.0/ref/Comics.Editor.dll

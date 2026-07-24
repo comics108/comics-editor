@@ -1,0 +1,3 @@
+# До первой публикации замените на реальный applicationId (см. android/app/build.gradle.kts).
+json_key_data(ENV["PLAY_STORE_JSON_KEY"])
+package_name(ENV["ANDROID_PACKAGE_NAME"] || "com.example.comics_editor")
