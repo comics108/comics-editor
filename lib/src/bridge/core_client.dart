@@ -13,8 +13,10 @@ import 'comics_core.dart';
 class CoreClient implements ComicsCore {
   Process? _process;
   StreamSubscription<String>? _stdoutSub;
+  StreamSubscription<String>? _stderrSub;
   int _nextId = 0;
   final Map<int, Completer<Map<String, dynamic>>> _pending = {};
+  final List<String> _stderrLines = [];
 
   bool get isRunning => _process != null;
 
@@ -67,11 +69,16 @@ class CoreClient implements ComicsCore {
 
     final process = await Process.start(binary, const []);
     _process = process;
+    _stderrLines.clear();
     _stdoutSub = process.stdout
         .transform(utf8.decoder)
         .transform(const LineSplitter())
         .listen(_onLine, onDone: _onExit);
-    unawaited(process.exitCode.then((_) => _onExit()));
+    _stderrSub = process.stderr
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())
+        .listen(_stderrLines.add);
+    unawaited(process.exitCode.then(_onExit));
     return true;
   }
 
@@ -95,12 +102,20 @@ class CoreClient implements ComicsCore {
     }
   }
 
-  void _onExit() {
+  void _onExit([int? exitCode]) {
     _process = null;
     _stdoutSub?.cancel();
     _stdoutSub = null;
+    _stderrSub?.cancel();
+    _stderrSub = null;
+    final detail = [
+      if (exitCode != null) 'exit code $exitCode',
+      if (_stderrLines.isNotEmpty) _stderrLines.join('\n'),
+    ].join(': ');
+    final message =
+        detail.isEmpty ? 'Core process exited' : 'Core process exited ($detail)';
     for (final pending in _pending.values) {
-      pending.completeError(CoreException('Core process exited'));
+      pending.completeError(CoreException(message));
     }
     _pending.clear();
   }
@@ -120,6 +135,7 @@ class CoreClient implements ComicsCore {
       'method': method,
       'params': ?params,
     }));
+    await _process!.stdin.flush();
     final response = await completer.future.timeout(timeout, onTimeout: () {
       _pending.remove(id);
       throw CoreException('Core call "$method" timed out');
