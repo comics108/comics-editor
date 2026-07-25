@@ -18,7 +18,7 @@ if (hasReleaseSigning) {
 }
 
 android {
-    namespace = "com.example.comics_editor"
+    namespace = "net.nativemind.comics.editor"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -28,8 +28,7 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.comics_editor"
+        applicationId = "net.nativemind.comics.editor"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 26 // sdd-comics-editor-v2.9-android-ios: решение Q3

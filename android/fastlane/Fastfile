@@ -3,16 +3,16 @@
 # workflow_dispatch. Локально: `cd android && bundle exec fastlane android deploy track:internal`
 # (нужны те же переменные окружения, что использует CI — см. release.yml).
 #
-# Перед первым реальным релизом:
-#   1. Сменить applicationId в android/app/build.gradle.kts и ANDROID_PACKAGE_NAME
-#      (сейчас — плейсхолдер com.example.comics_editor) на реальный package name.
-#   2. Создать приложение в Google Play Console, один раз загрузить .aab вручную
-#      (Google Play не разрешает первую публикацию через API).
-#   3. Настроить секреты в GitHub (Settings → Secrets and variables → Actions):
+# applicationId: net.nativemind.comics.editor (android/app/build.gradle.kts,
+# android/fastlane/Appfile). Перед первым реальным релизом:
+#   1. Создать приложение в Google Play Console с этим package name, один раз
+#      загрузить .aab вручную (Google Play не разрешает первую публикацию через API).
+#   2. Настроить секреты в GitHub (Settings → Secrets and variables → Actions):
 #        PLAY_STORE_JSON_KEY      — service account JSON (Play Console → API access)
 #        ANDROID_KEYSTORE_BASE64  — release-keystore, закодированный в base64
 #        ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
-#      и переменную ANDROID_PACKAGE_NAME (реальный applicationId).
+#      и переменную ANDROID_PACKAGE_NAME (по умолчанию net.nativemind.comics.editor,
+#      переопределяется только если package name в сторе будет отличаться).
 
 default_platform(:android)
 

@@ -43,3 +43,20 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# .NET build outputs (native/ — Comics.Core, Comics.Editor, Comics.Editor.Flutter,
+# Comics.Editor.Headless, Comics.Editor.Native). Публикации self-contained ядра
+# (native/Comics.Editor.Headless/publish, native/Comics.Editor.Native/publish) тянут
+# за собой рантайм .NET на десятки МБ каждая — их пересобирает tool/build_*.sh или CI.
+# native/Utils/ (7za.exe, ImageMagick/) — вендоренные тулы, не билд-артефакты, остаются.
+native/**/bin/
+native/**/obj/
+native/**/publish/
+*.user
+.vs/
+
+# Fastlane (android/key.properties и *.keystore уже покрыты android/.gitignore)
+**/fastlane/report.xml
+**/fastlane/Preview.html
+**/fastlane/screenshots/**/*.png
+**/fastlane/test_output

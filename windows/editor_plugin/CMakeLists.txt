@@ -15,15 +15,12 @@ target_include_directories(${PLUGIN_NAME} PUBLIC
 target_link_libraries(${PLUGIN_NAME} PRIVATE flutter flutter_wrapper_plugin)
 
 # Публикация C#-слоя (WPF-редактор + мост) в подпапку dotnet у exe.
+# Логика вызова dotnet publish — в publish_csharp.cmd (см. комментарий там):
+# многотокенная команда, переданная прямо в COMMAND, ломала VS-генератор CMake.
 find_program(DOTNET_EXECUTABLE dotnet)
 if(DOTNET_EXECUTABLE)
   add_custom_target(${PLUGIN_NAME}_csharp ALL
-    COMMAND ${DOTNET_EXECUTABLE} publish
-      "${CMAKE_CURRENT_SOURCE_DIR}/../../native/Comics.Editor.Flutter/Comics.Editor.Flutter.csproj"
-      -c Release
-      -f net10.0-windows
-      -o "${CMAKE_BINARY_DIR}/dotnet"
-      --verbosity minimal
+    COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/publish_csharp.cmd" "${CMAKE_BINARY_DIR}/dotnet"
     COMMENT "Publishing Comics.Editor.Flutter (net10.0-windows)…"
   )
   add_dependencies(${PLUGIN_NAME} ${PLUGIN_NAME}_csharp)

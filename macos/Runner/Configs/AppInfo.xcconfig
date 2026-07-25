@@ -8,7 +8,7 @@
 PRODUCT_NAME = comics_editor
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.example.comicsEditor
+PRODUCT_BUNDLE_IDENTIFIER = net.nativemind.comics.editor
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 com.example. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 NativeMind. All rights reserved.

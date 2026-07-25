@@ -6,10 +6,10 @@
 # Код-сайнинг — через fastlane match (readonly): сертификаты/профили хранятся в
 # отдельном приватном git-репозитории (см. https://docs.fastlane.tools/actions/match/).
 #
+# Bundle id: net.nativemind.comics.editor (ios/Runner.xcodeproj, ios/fastlane/Appfile).
 # Перед первым реальным релизом:
-#   1. Сменить PRODUCT_BUNDLE_IDENTIFIER в ios/Runner.xcodeproj (сейчас — плейсхолдер
-#      com.example.comicsEditor) и IOS_BUNDLE_ID на реальный bundle id; создать App ID
-#      в Apple Developer Portal и приложение в App Store Connect.
+#   1. Создать App ID net.nativemind.comics.editor в Apple Developer Portal и
+#      приложение с этим bundle id в App Store Connect.
 #   2. Завести приватный репозиторий для match и один раз выполнить
 #      `fastlane match appstore` локально, чтобы создать сертификаты/профили.
 #   3. Настроить секреты в GitHub (Settings → Secrets and variables → Actions):
@@ -17,7 +17,7 @@
 #          (App Store Connect → Users and Access → Keys; ASC_KEY_CONTENT — .p8 в base64)
 #        MATCH_GIT_URL, MATCH_PASSWORD — доступ к репозиторию сертификатов match
 #        APPLE_TEAM_ID, ASC_TEAM_ID     — team id разработчика и App Store Connect
-#      и переменную IOS_BUNDLE_ID (реальный bundle id).
+#      и переменную IOS_BUNDLE_ID (по умолчанию net.nativemind.comics.editor).
 
 default_platform(:ios)
 

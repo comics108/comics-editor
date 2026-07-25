@@ -1,4 +1,4 @@
-package com.example.comics_editor
+package net.nativemind.comics.editor
 
 import io.flutter.embedding.android.FlutterActivity
 
