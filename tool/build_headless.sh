@@ -37,6 +37,13 @@ if [[ -n "$mac_app" && "$rid" == osx-* ]]; then
   mkdir -p "$mac_app/Contents/Resources/comics-core"
   cp "$out/Comics.Editor" "$mac_app/Contents/Resources/comics-core/"
   echo "Copied into $mac_app/Contents/Resources/comics-core/"
+  # `flutter build macos` уже ad-hoc подписал бандл (Xcode build phase) — файлы,
+  # добавленные сюда после этого, не входят в resource seal подписи. Без повторной
+  # подписи Gatekeeper отказывается запускать скачанную (quarantined) копию с
+  # ошибкой "a sealed resource is missing or invalid" (не проявляется локально:
+  # свежесобранное приложение не несёт com.apple.quarantine).
+  codesign --force --deep --sign - "$mac_app"
+  echo "Re-signed (ad-hoc): $mac_app"
 fi
 
 linux_bundle=$(ls -d build/linux/*/release/bundle 2>/dev/null | head -1 || true)

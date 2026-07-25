@@ -21,15 +21,42 @@ Comics Editor — приложение для создания анимиров�
 
 Проект сохраняется в единый файл **`.comics`** или **`.puzzle`** — самодостаточный пакет (артборды, звук, тайминги анимаций), который можно встроить в любое приложение или отправить как есть. Файлы не зависят от платформы, на которой были созданы или открыты.
 
+По сути это **обычный `.zip`-архив** (без шифрования, `System.IO.Compression`/`ZipFile`, тот же формат, что у `7za.exe -tzip`) — переименуйте в `.zip` и распакуйте, чтобы посмотреть содержимое:
+
+```
+project.comics (= .zip)
+├── data.json          # весь документ: тип (comics/puzzle), слои, анимации, тайминги, звук, локали
+├── layers/             # картинки слоёв (и всплывающие картинки)
+│   └── <name>_<scale>_<tileX>_<tileY>.<ext>
+└── sounds/              # звуковые дорожки
+    └── <name>.<ext>
+```
+
+- `data.json` — единственный файл с бизнес-данными; сериализуется/десериализуется той же C#-моделью что в редакторе (`Comics.Editor.Models`), плоский JSON, версионирования нет.
+- Изображения нарезаны на тайлы фиксированного размера (512×512) на нескольких масштабах — для puzzle: `1.0, 0.5, 0.25, 0.125` (плюс превью-заглушка `ph_0_0`), для comics — только `1.0`. Имя файла кодирует масштаб и позицию тайла: `{name}_{scale}_{tileX}_{tileY}.{ext}`.
+- `sounds/` — звуковые файлы как есть, без нарезки.
+
+Читают этот формат Comics Viewer-библиотеки (см. ниже) — просто распаковывают zip и парсят `data.json`.
+
 ## Просмотр комиксов в своих приложениях (Comics Viewer)
 
 Для интеграторов, которым нужно воспроизводить `.comics`/`.puzzle` в собственном продукте, доступны референсные библиотеки **Comics Viewer** — по одной под основные платформы. Каждая читает файлы локально (без сети), синхронизирует анимацию со звуком и открывается пятью основными методами API:
 
-| Платформа | Библиотека | Путь |
+| Платформа | Библиотека | Репозиторий |
 |---|---|---|
-| Android | Comics Viewer Android | [`libs/comics_viewer/comics-viewer-android`](../../libs/comics_viewer/comics-viewer-android) |
-| iOS / macOS | Comics Viewer (Swift Package) | [`libs/comics_viewer/comics-viewer-ios`](../../libs/comics_viewer/comics-viewer-ios) |
-| Flutter | Flutter Comics Viewer | [`libs/comics_viewer/flutter_comics_viewer`](../../libs/comics_viewer/flutter_comics_viewer) |
-| React Native | React Native Comics Viewer | [`libs/comics_viewer/react-native-comics-viewer`](../../libs/comics_viewer/react-native-comics-viewer) |
+| Android | Comics Viewer Android | https://github.com/comics108/comics-viewer-android |
+| iOS / macOS | Comics Viewer (Swift Package) | https://github.com/comics108/comics-viewer-ios |
+| Flutter | Flutter Comics Viewer | https://github.com/comics108/flutter_comics_viewer |
+| React Native | React Native Comics Viewer | https://github.com/comics108/react-native-comics-viewer |
 
 Подробности установки и API — в README каждой библиотеки.
+
+## Запуск несобранного (неподписанного) macOS-билда
+
+Сборки из GitHub Actions подписаны ad-hoc (без Developer ID/нотаризации) — macOS блокирует скачанную копию Gatekeeper'ом. Снять карантинный атрибут вручную:
+
+```bash
+xattr -d com.apple.quarantine comics_editor.app
+```
+
+После этого приложение открывается обычным двойным щелчком без предупреждений.
