@@ -55,6 +55,11 @@ native/**/publish/
 *.user
 .vs/
 
+# Docker Build (tool/docker-build.sh) — персистентный Gradle-кэш между запусками
+# android-контейнера (bind-mount, не Docker volume — чтобы UID хоста совпадал с
+# --user внутри контейнера без отдельной настройки прав).
+/.docker-cache/
+
 # Fastlane (android/key.properties и *.keystore уже покрыты android/.gitignore)
 **/fastlane/report.xml
 **/fastlane/Preview.html

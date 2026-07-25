@@ -56,12 +56,41 @@ if [ -z "${CI:-}" ]; then
   user_flags=(--user "$(id -u):$(id -g)")
 fi
 
+# HOME явно задаём в /tmp (не в /workspace — не мусорить в bind-mounted репозиторий):
+# при `--user UID:GID` в контейнере нет passwd-записи для этого UID, поэтому HOME
+# по умолчанию резолвится в `/`, и Flutter падает на создании `/.config/flutter`
+# (не пишется даже под root по факту первого запуска — только /tmp гарантированно
+# world-writable в базовом образе).
+#
+# Java (Gradle, Android-сборка) HOME не читает так же напрямую: user.home
+# берётся через getpwuid() для текущего UID, и при отсутствующей passwd-записи
+# JVM подставляет буквально "?" — Gradle тогда пишет кэш в несуществующий путь
+# вида `android/?/.gradle/...`. GRADLE_USER_HOME + JAVA_TOOL_OPTIONS -Duser.home
+# переопределяют это явно.
+env_flags=(--env "HOME=/tmp")
+mount_flags=()
+
+if [ "$target" = android ]; then
+  # Персистентный Gradle-кэш между запусками (bind-mount хостовой директории,
+  # не Docker volume — так UID хоста и --user внутри контейнера совпадают без
+  # отдельной настройки прав). Без этого GRADLE_USER_HOME указывал бы на /tmp,
+  # который стирается на каждом --rm запуске — Gradle/AGP/Kotlin-тулчейн
+  # выкачивался бы заново на каждом прогоне (минуты лишнего времени).
+  gradle_cache="$(pwd)/.docker-cache/gradle"
+  mkdir -p "$gradle_cache"
+  mount_flags+=(-v "$gradle_cache:/gradle-cache")
+  env_flags+=(
+    --env "GRADLE_USER_HOME=/gradle-cache"
+    --env "JAVA_TOOL_OPTIONS=-Duser.home=/tmp"
+  )
+fi
+
 if [ "$#" -gt 0 ]; then
-  exec docker run --rm --platform "$platform" -v "$(pwd):/workspace" -w /workspace "${user_flags[@]}" "$image" "$@"
+  exec docker run --rm --platform "$platform" -v "$(pwd):/workspace" -w /workspace "${user_flags[@]}" "${env_flags[@]}" "${mount_flags[@]}" "$image" "$@"
 fi
 
 case "$target" in
   linux) cmd="$default_linux_cmd" ;;
   android) cmd="$default_android_cmd" ;;
 esac
-exec docker run --rm --platform "$platform" -v "$(pwd):/workspace" -w /workspace "${user_flags[@]}" "$image" bash -c "$cmd"
+exec docker run --rm --platform "$platform" -v "$(pwd):/workspace" -w /workspace "${user_flags[@]}" "${env_flags[@]}" "${mount_flags[@]}" "$image" bash -c "$cmd"

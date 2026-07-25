@@ -49,11 +49,19 @@ class _Stage extends StatelessWidget {
         final scale = c.isPuzzle ? doc.scale : 1.0;
         pageW *= scale;
         pageH *= scale;
-        return Center(
-          child: SizedBox(
-            width: pageW,
-            height: pageH,
-            child: _Page(c, Size(pageW, pageH)),
+        return InteractiveViewer(
+          key: c.viewportKey,
+          transformationController: c.canvasViewport,
+          minScale: EditorController.kCanvasZoomMin,
+          maxScale: EditorController.kCanvasZoomMax,
+          boundaryMargin: const EdgeInsets.all(200),
+          trackpadScrollCausesScale: false,
+          child: Center(
+            child: SizedBox(
+              width: pageW,
+              height: pageH,
+              child: _Page(c, Size(pageW, pageH)),
+            ),
           ),
         );
       }),
@@ -138,7 +146,10 @@ class _LayerItem extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         onTap: () => c.selectLayer(i),
         onPanStart: (_) => c.selectLayer(i),
-        onPanUpdate: (d) => c.dragSelected(Offset(d.delta.dx / k, d.delta.dy / k)),
+        onPanUpdate: (d) {
+          final vz = c.canvasViewport.value.getMaxScaleOnAxis();
+          c.dragSelected(Offset(d.delta.dx / (k * vz), d.delta.dy / (k * vz)));
+        },
         child: selected ? _WithHandles(child: swatch) : swatch,
       ),
     );
@@ -200,36 +211,45 @@ class _ZoomControl extends StatelessWidget {
   final EditorController c;
   @override
   Widget build(BuildContext context) {
-    final pct = ((c.isPuzzle ? c.doc!.scale : 1.0) * 100).round();
-    return Container(
-      decoration: BoxDecoration(
-        color: Hs.white,
-        borderRadius: BorderRadius.circular(Hs.rBtn),
-        boxShadow: Hs.cardShadow,
-      ),
-      padding: const EdgeInsets.all(4),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        _zoomBtn('−', () => _bump(c, -.1)),
-        SizedBox(
-            width: 50,
-            child: Text('$pct%',
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
-        _zoomBtn('+', () => _bump(c, .1)),
-        Container(width: 1, height: 20, color: Hs.divider, margin: const EdgeInsets.symmetric(horizontal: 2)),
-        IconButton(
-          onPressed: () => c.setScale(1),
-          icon: const Icon(Icons.crop_free, size: 18, color: Hs.textSecondary),
-          tooltip: 'Fit',
-          visualDensity: VisualDensity.compact,
-        ),
-      ]),
+    return ListenableBuilder(
+      listenable: c.canvasViewport,
+      builder: (context, _) {
+        final pct = (c.canvasViewport.value.getMaxScaleOnAxis() * 100).round();
+        return Container(
+          decoration: BoxDecoration(
+            color: Hs.white,
+            borderRadius: BorderRadius.circular(Hs.rBtn),
+            boxShadow: Hs.cardShadow,
+          ),
+          padding: const EdgeInsets.all(4),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            _zoomBtn('−', () => _bump(c, 1 / EditorController.kCanvasZoomStep)),
+            SizedBox(
+                width: 50,
+                child: Text('$pct%',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
+            _zoomBtn('+', () => _bump(c, EditorController.kCanvasZoomStep)),
+            Container(width: 1, height: 20, color: Hs.divider, margin: const EdgeInsets.symmetric(horizontal: 2)),
+            IconButton(
+              onPressed: c.resetViewport,
+              icon: const Icon(Icons.crop_free, size: 18, color: Hs.textSecondary),
+              tooltip: 'Fit',
+              visualDensity: VisualDensity.compact,
+            ),
+          ]),
+        );
+      },
     );
   }
 
-  void _bump(EditorController c, double d) {
-    if (!c.isPuzzle) return; // comics is fixed-fit like the original
-    c.setScale((c.doc!.scale + d).clamp(0.125, 1));
+  void _bump(EditorController c, double factor) {
+    final viewportBox =
+        c.viewportKey.currentContext?.findRenderObject() as RenderBox?;
+    final focal = viewportBox != null
+        ? viewportBox.size.center(Offset.zero)
+        : Offset.zero;
+    c.zoomBy(factor, focal);
   }
 
   Widget _zoomBtn(String t, VoidCallback onTap) => InkWell(

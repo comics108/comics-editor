@@ -26,6 +26,38 @@ class EditorController extends ChangeNotifier {
   int playhead = 0; // current frame
   final int totalFrames = 600;
 
+  // ---------- canvas viewport camera (view-only, not persisted) ----------
+  static const double kCanvasZoomMin = 0.25;
+  static const double kCanvasZoomMax = 4.0;
+  static const double kCanvasZoomStep = 1.25;
+
+  /// Pan/zoom transform applied on top of the fit-to-viewport page layout.
+  /// Decoupled from [ComicsDoc.scale] (puzzle-only business field) — see
+  /// sdd-comics-editor-v2.9-fixes1 Iteration 2.
+  final TransformationController canvasViewport = TransformationController();
+
+  /// Lets sibling widgets (e.g. the +/- zoom buttons) find the
+  /// InteractiveViewer's RenderBox to compute a focal point for zoomBy().
+  final GlobalKey viewportKey = GlobalKey();
+
+  void resetViewport() {
+    canvasViewport.value = Matrix4.identity();
+  }
+
+  /// Zooms by [factor] (multiplicative) around [focalPoint], given in the
+  /// InteractiveViewer's local coordinate space.
+  void zoomBy(double factor, Offset focalPoint) {
+    final current = canvasViewport.value.getMaxScaleOnAxis();
+    final target = (current * factor).clamp(kCanvasZoomMin, kCanvasZoomMax);
+    final scaleDelta = target / current;
+    if (scaleDelta == 1.0) return;
+    final scenePoint = canvasViewport.toScene(focalPoint);
+    canvasViewport.value = canvasViewport.value.clone()
+      ..translateByDouble(scenePoint.dx, scenePoint.dy, 0, 1)
+      ..scaleByDouble(scaleDelta, scaleDelta, scaleDelta, 1)
+      ..translateByDouble(-scenePoint.dx, -scenePoint.dy, 0, 1);
+  }
+
   bool get isOpen => doc != null;
   bool get isPuzzle => doc?.type == DocType.puzzle;
 
@@ -63,6 +95,7 @@ class EditorController extends ChangeNotifier {
           comicsFromCore(result['comics'] as Map<String, dynamic>, path);
       doc = coreDoc!.doc;
       coreError = null;
+      resetViewport();
       _clearSelection();
       if (doc!.layers.isNotEmpty) selectLayer(0);
       notifyListeners();
@@ -151,6 +184,7 @@ class EditorController extends ChangeNotifier {
 
   @override
   void dispose() {
+    canvasViewport.dispose();
     core.dispose();
     super.dispose();
   }
@@ -163,6 +197,7 @@ class EditorController extends ChangeNotifier {
       width: type == DocType.comics ? 1080 : 1024,
       height: type == DocType.comics ? 1920 : 768,
     );
+    resetViewport();
     _clearSelection();
     notifyListeners();
   }
@@ -174,6 +209,7 @@ class EditorController extends ChangeNotifier {
       width: f.type == DocType.comics ? 1080 : 1024,
       height: f.type == DocType.comics ? 1920 : 768,
     );
+    resetViewport();
     if (f.name == 'beach.comics') _seedBeach();
     _clearSelection();
     if (doc!.layers.isNotEmpty) selectLayer(doc!.layers.length - 2 < 0 ? 0 : 2);

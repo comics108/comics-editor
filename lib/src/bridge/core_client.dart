@@ -36,17 +36,19 @@ class CoreClient implements ComicsCore {
       '$exeDir/data/comics-core/Comics.Editor',
     ];
 
-    // Dev-режим (flutter run): ищем publish-папку вверх от CWD.
+    // Dev-режим (flutter run): ищем publish-папку вверх от CWD. RID-кандидаты
+    // ограничены текущей ОС — иначе при наличии устаревших publish-артефактов
+    // другой платформы в рабочей копии выбирается чужой (нерабочий) бинарник.
+    final rids = switch (Platform.operatingSystem) {
+      'macos' => const ['osx-arm64', 'osx-x64'],
+      'linux' => const ['linux-x64', 'linux-arm64'],
+      'windows' => const ['win-x64'],
+      _ => const <String>[],
+    };
     var dir = Directory.current;
     for (var i = 0; i < 6; i++) {
       final base = '${dir.path}/native/Comics.Editor.Headless/publish';
-      for (final rid in const [
-        'osx-arm64',
-        'osx-x64',
-        'linux-x64',
-        'linux-arm64',
-        'win-x64',
-      ]) {
+      for (final rid in rids) {
         candidates.add('$base/$rid/Comics.Editor');
         candidates.add('$base/$rid/Comics.Editor.exe');
       }
