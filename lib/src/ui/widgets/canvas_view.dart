@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../controller.dart';
-import '../models.dart';
 import '../theme.dart';
 import 'common.dart';
 
@@ -118,7 +117,7 @@ class _LayerItem extends StatelessWidget {
               style: TextStyle(
                   fontFamily: Hs.serifData.first,
                   fontSize: 11,
-                  color: Colors.white.withOpacity(.75))),
+                  color: Colors.white.withValues(alpha: .75))),
         ),
         if (selected)
           Positioned.fill(

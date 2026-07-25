@@ -21,10 +21,10 @@ import 'core_client.dart' show CoreException;
 /// (camelCase, `$type` со сборкой `Comics.Editor` — схема формируется на стороне
 /// Dart UI в `models_mapping.dart`, ядро её не интерпретирует).
 class DartIoCore implements ComicsCore {
-  DartIoCore({String? workDirPath}) : _workDirPath = workDirPath;
+  DartIoCore({this.workDirPath});
 
   /// Для тестов (path_provider недоступен вне engine-теста): явный путь.
-  final String? _workDirPath;
+  final String? workDirPath;
   Directory? _workDir;
 
   @override
@@ -33,7 +33,7 @@ class DartIoCore implements ComicsCore {
   Future<Directory> _work() async {
     if (_workDir != null) return _workDir!;
     final basePath =
-        _workDirPath ?? (await getApplicationSupportDirectory()).path;
+        workDirPath ?? (await getApplicationSupportDirectory()).path;
     final dir = Directory('$basePath/comics-work');
     if (!dir.existsSync()) dir.createSync(recursive: true);
     _workDir = dir;

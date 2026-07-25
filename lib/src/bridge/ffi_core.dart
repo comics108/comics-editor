@@ -22,15 +22,14 @@ typedef _ComicsSetEnv = void Function(Pointer<Utf8>, Pointer<Utf8>);
 /// только в тестах (osx-dylib), путь задаётся [overrideLibraryPath] или
 /// переменной окружения `COMICS_CORE_LIB`.
 class FfiCore implements ComicsCore {
-  FfiCore({Map<String, String> environment = const {}})
-      : _environment = environment;
+  FfiCore({this.environment = const {}});
 
   /// Для тестов: явный путь к библиотеке.
   static String? overrideLibraryPath;
 
   /// Переменные окружения, выставляемые в ядре до первого вызова
   /// (HOME/XDG_DATA_HOME для песочницы — Task 3.5).
-  final Map<String, String> _environment;
+  final Map<String, String> environment;
   bool _envApplied = false;
 
   static String? resolveLibrary() {
@@ -62,7 +61,7 @@ class FfiCore implements ComicsCore {
     if (resolved == null) {
       throw CoreException('Native core library not found — run tool/build_native.sh');
     }
-    var env = _envApplied ? const <String, String>{} : _environment;
+    var env = _envApplied ? const <String, String>{} : environment;
     // Task 3.5: на мобильных TempFolder ядра (LocalApplicationData → $HOME)
     // должен попасть в песочницу приложения.
     if (!_envApplied &&

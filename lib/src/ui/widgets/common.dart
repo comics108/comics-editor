@@ -339,7 +339,7 @@ class _HatchPainter extends CustomPainter {
     final bg = Paint()..color = color;
     canvas.drawRect(Offset.zero & size, bg);
     final line = Paint()
-      ..color = Colors.white.withOpacity(.12)
+      ..color = Colors.white.withValues(alpha: .12)
       ..strokeWidth = 6;
     for (double d = -size.height; d < size.width; d += 12) {
       canvas.drawLine(Offset(d, size.height), Offset(d + size.height, 0), line);

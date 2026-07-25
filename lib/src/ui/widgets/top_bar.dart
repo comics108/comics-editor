@@ -30,7 +30,7 @@ class BrandMark extends StatelessWidget {
               height: size * .12,
               margin: EdgeInsets.symmetric(vertical: size * .045),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(o),
+                color: Colors.white.withValues(alpha: o),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
