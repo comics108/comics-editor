@@ -1,0 +1,96 @@
+name: Docker Build
+
+# Reproducible Docker Build — не заменяет Native Build (build.yml), а дополняет
+# его: собирает Linux/Android в тех же тулчейн-образах, что и `tool/docker-build.sh`
+# локально, поэтому «работает у меня» и «работает в CI» — одна и та же среда.
+# Запускается редко и намеренно не на каждый push/PR (см. sdd-comics-editor-build,
+# 01-requirements.md — Архитектурная правка): main, ночью по расписанию, и на
+# публикацию релиза — результат публикуется как артефакт с длинным retention,
+# а не как быстрая verification-обратная связь (это по-прежнему делает build.yml).
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 3 * * *" # nightly, 03:00 UTC — легко поменять
+  release:
+    types: [published]
+
+concurrency:
+  group: docker-build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  docker-build-linux:
+    name: Docker Build / Linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: docker
+          file: docker/linux-build.Dockerfile
+          tags: comics-editor-linux-build:ci
+          load: true
+          cache-from: type=gha,scope=linux-build
+          cache-to: type=gha,mode=max,scope=linux-build
+      - name: Build and test inside container
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" -w /workspace \
+            comics-editor-linux-build:ci \
+            bash -c '
+              flutter pub get \
+              && dotnet build native/Comics.Editor.Headless/Comics.Editor.Headless.csproj -c Release \
+              && flutter build linux --release \
+              && tool/build_headless.sh \
+              && flutter test test/widget_test.dart test/dart_io_core_test.dart test/core_client_test.dart
+            '
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-release-build
+          path: build/linux/*/release/bundle/
+          retention-days: 90
+      - name: Attach to GitHub Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/linux/x64/release/bundle/**
+
+  docker-build-android:
+    name: Docker Build / Android
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: docker
+          file: docker/android-build.Dockerfile
+          tags: comics-editor-android-build:ci
+          load: true
+          cache-from: type=gha,scope=android-build
+          cache-to: type=gha,mode=max,scope=android-build
+      - name: Build and test inside container
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" -w /workspace \
+            comics-editor-android-build:ci \
+            bash -c '
+              flutter pub get \
+              && flutter build apk --release \
+              && flutter test test/widget_test.dart test/dart_io_core_test.dart
+            '
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-release-apk
+          path: build/app/outputs/flutter-apk/*.apk
+          retention-days: 90
+      - name: Attach to GitHub Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/app/outputs/flutter-apk/*.apk
