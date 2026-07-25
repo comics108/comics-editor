@@ -144,21 +144,16 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
-      - name: Install Android NDK
-        run: |
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;27.0.12077973"
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
       - run: flutter pub get
-      # NativeAOT .so (Comics.Editor.Native) — реально кросс-компилируется только
-      # на Linux; ubuntu-latest runner собирает то, что на macOS собрать нельзя.
-      - run: tool/build_native.sh android
+      # Android не использует .NET/NativeAOT-ядро: CoreCLR NativeAOT (ILCompiler)
+      # не поддерживает linux-bionic/android RID в .NET 10 (исключены явно в
+      # Microsoft.NETCoreSdk.BundledVersions.props — не вопрос кросс-компиляции
+      # или NDK). Open/save реализованы на чистом Dart (DartIoCore), как и на iOS —
+      # см. flows/sdd-comics-editor-v2.9-android-ios/04-implementation-log.md.
       - run: flutter build apk --release
       - run: flutter test test/widget_test.dart test/dart_io_core_test.dart
       - uses: actions/upload-artifact@v4

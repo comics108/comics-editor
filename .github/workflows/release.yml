@@ -31,7 +31,6 @@ concurrency:
 
 env:
   FLUTTER_VERSION: "3.44.6"
-  DOTNET_VERSION: "10.0.x"
 
 jobs:
   release-android:
@@ -45,9 +44,6 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -57,13 +53,9 @@ jobs:
           ruby-version: "3.3"
           bundler-cache: true
           working-directory: android
-      - name: Install Android NDK
-        run: |
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;27.0.12077973"
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
+      # Android не использует .NET/NativeAOT-ядро — см. комментарий в build.yml
+      # (build-android job): CoreCLR NativeAOT не поддерживает Android в .NET 10.
       - run: flutter pub get
-      - name: Build NativeAOT core (.so)
-        run: tool/build_native.sh android
       - name: Configure release signing
         working-directory: android
         env:
