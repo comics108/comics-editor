@@ -57,22 +57,6 @@ jobs:
         shell: bash
         run: tool/build_headless.sh win-x64
       - run: flutter build windows --release
-      # Диагностика MSB1008 (sdd-comics-editor-build, 2026-07-25): наш custom-build
-      # скрипт (windows/editor_plugin/publish_csharp.cmd) не выводит НИЧЕГО в лог
-      # ошибки — значит падение происходит до его запуска, при обработке MSBuild
-      # самого editor_plugin_csharp.vcxproj. Дампим сгенерированный CMake vcxproj,
-      # чтобы увидеть реальный <Command>, а не гадать. Убрать после того, как баг
-      # будет найден и исправлен.
-      - name: Dump generated custom-build vcxproj (diagnostic, temporary)
-        if: failure()
-        shell: pwsh
-        run: |
-          Get-ChildItem -Recurse -File -Path build/windows -Filter "editor_plugin_csharp*" | ForEach-Object {
-            Write-Host "=== $($_.FullName) ==="
-            Get-Content -Raw $_.FullName
-          }
-          Write-Host "=== editor_plugin.vcxproj (sibling target, for comparison) ==="
-          Get-Content -Raw build/windows/x64/editor_plugin/editor_plugin.vcxproj
       - name: Test
         shell: bash
         run: flutter test test/widget_test.dart test/dart_io_core_test.dart test/core_client_test.dart
