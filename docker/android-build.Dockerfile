@@ -1,7 +1,9 @@
 # sdd-comics-editor-build: тулчейн-образ для верификационной сборки Android
-# (Comics Editor v2.9) — Flutter + Gradle. NDK не устанавливается: Android
-# больше не использует NativeAOT (см. sdd-comics-editor-v2.9-android-ios —
-# пивот на DartIoCore, чистый Dart, без нативных C#-библиотек на мобильных).
+# (Comics Editor v2.9) — Flutter + Gradle. Проект сам не использует NativeAOT/NDK
+# (см. sdd-comics-editor-v2.9-android-ios — пивот на DartIoCore, чистый Dart, без
+# нативных C#-библиотек на мобильных); NDK/CMake здесь установлены только потому,
+# что их запрашивает сам Flutter Gradle-плагин (flutter.ndkVersion) независимо от
+# нашего кода — без них Gradle скачивал бы их заново на каждом `docker run`.
 #
 # Образ содержит только тулчейн, без исходников: код монтируется при `docker run`
 # (см. tool/docker-build.sh, .github/workflows/build.yml).
@@ -19,6 +21,14 @@ ARG FLUTTER_VERSION=3.44.6
 ARG CMDLINE_TOOLS_BUILD=9862592
 ARG ANDROID_PLATFORM=android-36
 ARG ANDROID_BUILD_TOOLS=36.0.0
+# Flutter 3.44.6 Gradle-плагин запрашивает свои дефолты (flutter.compileSdkVersion/
+# ndkVersion), не наш ANDROID_PLATFORM/ANDROID_BUILD_TOOLS выше — без этих пакетов
+# Gradle скачивал бы их сам при каждом `docker run` (~10+ минут, не кешируется:
+# устанавливается внутрь эфемерного контейнера, не в bind-mounted /gradle-cache).
+ARG FLUTTER_COMPILE_SDK=android-35
+ARG FLUTTER_BUILD_TOOLS=35.0.0
+ARG FLUTTER_NDK=28.2.13676358
+ARG FLUTTER_CMAKE=3.22.1
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -54,7 +64,9 @@ ENV PATH="${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/platform-tool
 # пайпа после последней лицензии (SIGPIPE-подобное поведение под non-tty) — это
 # не сбой приёма лицензий, поэтому не связываем через &&, а проверяем отдельно.
 RUN yes | sdkmanager --licenses; \
-    sdkmanager --install "platform-tools" "platforms;${ANDROID_PLATFORM}" "build-tools;${ANDROID_BUILD_TOOLS}"
+    sdkmanager --install "platform-tools" "platforms;${ANDROID_PLATFORM}" "build-tools;${ANDROID_BUILD_TOOLS}" \
+        "platforms;${FLUTTER_COMPILE_SDK}" "build-tools;${FLUTTER_BUILD_TOOLS}" \
+        "ndk;${FLUTTER_NDK}" "cmake;${FLUTTER_CMAKE}"
 
 # Flutter SDK — тот же официальный дистрибутив, что скачивает subosito/flutter-action.
 RUN curl -fsSL "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz" \
