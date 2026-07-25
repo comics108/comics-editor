@@ -145,11 +145,15 @@ class _LayerItem extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () => c.selectLayer(i),
-        onPanStart: (_) => c.selectLayer(i),
+        onPanStart: (_) {
+          c.selectLayer(i);
+          c.beginGestureHistory();
+        },
         onPanUpdate: (d) {
           final vz = c.canvasViewport.value.getMaxScaleOnAxis();
           c.dragSelected(Offset(d.delta.dx / (k * vz), d.delta.dy / (k * vz)));
         },
+        onPanEnd: (_) => c.commitGestureHistory(),
         child: selected ? _WithHandles(child: swatch) : swatch,
       ),
     );

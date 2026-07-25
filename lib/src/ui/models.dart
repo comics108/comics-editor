@@ -48,6 +48,16 @@ class Anim {
   double alpha = 1;
 
   String get title => type.label;
+
+  Anim clone() => Anim(type, start: start, end: end)
+    ..x = x
+    ..y = y
+    ..pivotX = pivotX
+    ..pivotY = pivotY
+    ..angle = angle
+    ..scaleX = scaleX
+    ..scaleY = scaleY
+    ..alpha = alpha;
 }
 
 /// A localized artwork slot — one per culture (En/Ru/Hi).
@@ -55,6 +65,8 @@ class LayerImage {
   LayerImage({this.file = '', this.popup = ''});
   String file;
   String popup;
+
+  LayerImage clone() => LayerImage(file: file, popup: popup);
 }
 
 class EditorLayer {
@@ -76,12 +88,34 @@ class EditorLayer {
   Offset translate;
   double size = 0.5; // fraction of page width, for the placeholder swatch
   Color swatch = const Color(0xFF57422D);
+
+  /// Deep copy — for undo/redo snapshots (see [ComicsDoc.clone]). The
+  /// constructor auto-seeds default `images`/`anims`, so those are cleared
+  /// and replaced with real deep copies.
+  EditorLayer clone() {
+    final copy = EditorLayer(name, at: translate)
+      ..visible = visible
+      ..preview = preview
+      ..size = size
+      ..swatch = swatch;
+    copy.images.clear();
+    copy.images.addAll(images.map((i) => i.clone()));
+    copy.anims.clear();
+    copy.anims.addAll(anims.map((a) => a.clone()));
+    return copy;
+  }
 }
 
 class EditorSound {
   EditorSound(this.file);
   String file;
   final List<Anim> anims = [];
+
+  EditorSound clone() {
+    final copy = EditorSound(file);
+    copy.anims.addAll(anims.map((a) => a.clone()));
+    return copy;
+  }
 }
 
 class ComicsDoc {
@@ -99,6 +133,19 @@ class ComicsDoc {
   final List<EditorLayer> layers = [];
   final List<EditorSound> sounds = [];
   double scale = 1; // puzzle zoom (0.125 .. 1 in the original)
+
+  /// Deep copy — used by [EditHistory] to snapshot document state for
+  /// undo/redo. Direct clone rather than a JSON round-trip through
+  /// comicsToCore/comicsFromCore: newDoc()/openRecent() create a [ComicsDoc]
+  /// with no backing [CoreDocument] (coreDoc stays null), so a snapshot
+  /// strategy must work without one.
+  ComicsDoc clone() {
+    final copy = ComicsDoc(name: name, type: type, width: width, height: height)
+      ..scale = scale;
+    copy.layers.addAll(layers.map((l) => l.clone()));
+    copy.sounds.addAll(sounds.map((s) => s.clone()));
+    return copy;
+  }
 }
 
 /// A file the Open dialog can list.

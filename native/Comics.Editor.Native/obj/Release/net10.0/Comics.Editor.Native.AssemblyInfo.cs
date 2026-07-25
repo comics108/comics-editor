@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Comics.Editor")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+904cec1de4542d3d3ca2f36578f06995da1889ea")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+0094cc7a7114d82daa1f2dfa06ab5178dc70bc9a")]
 [assembly: System.Reflection.AssemblyProductAttribute("Comics.Editor")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Comics.Editor")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

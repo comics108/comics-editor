@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../controller.dart';
 import '../responsive.dart';
@@ -9,6 +10,19 @@ import '../widgets/properties_panel.dart';
 import '../widgets/scene_panel.dart';
 import '../widgets/timeline.dart';
 import '../widgets/top_bar.dart';
+
+/// Ctrl+Z / Ctrl+Shift+Z — bound via [Shortcuts]/[Actions] (not a raw keyboard
+/// listener) so Flutter's own focus/action resolution keeps working: a
+/// focused [TextField] registers its own undo Actions closer to the focus
+/// than this screen-level [Shortcuts], so text-field undo still wins there
+/// instead of being stolen by the document-level shortcut.
+class UndoIntent extends Intent {
+  const UndoIntent();
+}
+
+class RedoIntent extends Intent {
+  const RedoIntent();
+}
 
 /// Adaptive assembly of the editor:
 ///  • desktop  — Scene | Canvas | Properties, full timeline docked below
@@ -25,25 +39,39 @@ class EditorScreen extends StatelessWidget {
       builder: (context, _) {
         if (!c.isOpen) return const _Welcome();
         final ff = formFactorOf(context);
-        return Scaffold(
-          backgroundColor: Hs.surfaceCloud,
-          body: SafeArea(
-            child: Column(
-              children: [
-                Material(
-                  elevation: 0,
-                  color: Hs.white,
-                  child: const TopBar(),
+        return Shortcuts(
+          shortcuts: {
+            LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyZ):
+                const UndoIntent(),
+            LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.shift,
+                LogicalKeyboardKey.keyZ): const RedoIntent(),
+          },
+          child: Actions(
+            actions: {
+              UndoIntent: CallbackAction<UndoIntent>(onInvoke: (_) => c.undo()),
+              RedoIntent: CallbackAction<RedoIntent>(onInvoke: (_) => c.redo()),
+            },
+            child: Scaffold(
+              backgroundColor: Hs.surfaceCloud,
+              body: SafeArea(
+                child: Column(
+                  children: [
+                    Material(
+                      elevation: 0,
+                      color: Hs.white,
+                      child: const TopBar(),
+                    ),
+                    const Divider(height: 1, color: Hs.divider),
+                    Expanded(
+                      child: switch (ff) {
+                        FormFactor.desktop => const _DesktopBody(),
+                        FormFactor.tablet => const _TabletBody(),
+                        FormFactor.phone => const _PhoneBody(),
+                      },
+                    ),
+                  ],
                 ),
-                const Divider(height: 1, color: Hs.divider),
-                Expanded(
-                  child: switch (ff) {
-                    FormFactor.desktop => const _DesktopBody(),
-                    FormFactor.tablet => const _TabletBody(),
-                    FormFactor.phone => const _PhoneBody(),
-                  },
-                ),
-              ],
+              ),
             ),
           ),
         );

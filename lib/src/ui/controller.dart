@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../bridge/comics_core.dart';
 import '../bridge/documents.dart';
 import '../bridge/models_mapping.dart';
+import 'edit_history.dart';
 import 'models.dart';
 
 /// Which element type is selected in the right-hand Properties pane.
@@ -56,6 +57,52 @@ class EditorController extends ChangeNotifier {
       ..translateByDouble(scenePoint.dx, scenePoint.dy, 0, 1)
       ..scaleByDouble(scaleDelta, scaleDelta, scaleDelta, 1)
       ..translateByDouble(-scenePoint.dx, -scenePoint.dy, 0, 1);
+  }
+
+  // ---------- undo/redo (see sdd-comics-editor-v2.9-fixes2) ----------
+  final EditHistory _history = EditHistory();
+  bool get canUndo => _history.canUndo;
+  bool get canRedo => _history.canRedo;
+
+  /// Snapshot the current doc BEFORE a mutation. No-op if no doc is open.
+  /// Call right after any early-return guards, so no-op calls (e.g.
+  /// moveLayer() at a boundary) don't create phantom history entries.
+  void _beginHistory() {
+    final d = doc;
+    if (d != null) _history.beginTransaction(d.clone());
+  }
+
+  void _commitHistory() {
+    _history.commitTransaction();
+  }
+
+  /// Public transaction boundary for continuous gestures (e.g. layer drag in
+  /// canvas_view.dart) — one history entry per whole gesture, not per frame.
+  void beginGestureHistory() => _beginHistory();
+  void commitGestureHistory() => _commitHistory();
+
+  void undo() {
+    final d = doc;
+    if (d == null) return;
+    final snapshot = _history.undo(d.clone());
+    if (snapshot == null) return;
+    doc = snapshot;
+    final cd = coreDoc;
+    if (cd != null) coreDoc = CoreDocument(snapshot, cd.raw, cd.path);
+    _clearSelection();
+    notifyListeners();
+  }
+
+  void redo() {
+    final d = doc;
+    if (d == null) return;
+    final snapshot = _history.redo(d.clone());
+    if (snapshot == null) return;
+    doc = snapshot;
+    final cd = coreDoc;
+    if (cd != null) coreDoc = CoreDocument(snapshot, cd.raw, cd.path);
+    _clearSelection();
+    notifyListeners();
   }
 
   bool get isOpen => doc != null;
@@ -191,24 +238,28 @@ class EditorController extends ChangeNotifier {
 
   // ---------- document lifecycle ----------
   void newDoc(DocType type) {
+    coreDoc = null;
     doc = ComicsDoc(
       name: type == DocType.comics ? 'untitled.comics' : 'untitled.puzzle',
       type: type,
       width: type == DocType.comics ? 1080 : 1024,
       height: type == DocType.comics ? 1920 : 768,
     );
+    _history.clear();
     resetViewport();
     _clearSelection();
     notifyListeners();
   }
 
   void openRecent(RecentFile f) {
+    coreDoc = null;
     doc = ComicsDoc(
       name: f.name,
       type: f.type,
       width: f.type == DocType.comics ? 1080 : 1024,
       height: f.type == DocType.comics ? 1920 : 768,
     );
+    _history.clear();
     resetViewport();
     if (f.name == 'beach.comics') _seedBeach();
     _clearSelection();
@@ -252,13 +303,18 @@ class EditorController extends ChangeNotifier {
 
   void setCanvasSize(int? w, int? h) {
     if (doc == null) return;
+    _beginHistory();
     if (w != null) doc!.width = w;
     if (h != null) doc!.height = h;
+    _commitHistory();
     notifyListeners();
   }
 
   void setScale(double s) {
+    if (doc == null) return;
+    _beginHistory();
     doc?.scale = s;
+    _commitHistory();
     notifyListeners();
   }
 
@@ -296,10 +352,12 @@ class EditorController extends ChangeNotifier {
   // ---------- layers ----------
   void addLayer() {
     final d = doc!;
+    _beginHistory();
     final l = EditorLayer('layer_${d.layers.length + 1}.png',
         at: Offset(40, 60.0 + d.layers.length * 30))
       ..swatch = Colors.primaries[d.layers.length % Colors.primaries.length].shade700;
     d.layers.add(l);
+    _commitHistory();
     selectLayer(d.layers.length - 1);
   }
 
@@ -308,34 +366,41 @@ class EditorController extends ChangeNotifier {
     final i = selIndex, j = i + dir;
     final ls = doc!.layers;
     if (j < 0 || j >= ls.length) return;
+    _beginHistory();
     final tmp = ls[i];
     ls[i] = ls[j];
     ls[j] = tmp;
     selIndex = j;
+    _commitHistory();
     notifyListeners();
   }
 
   void deleteSelected() {
+    if (selKind != SelKind.layer && selKind != SelKind.sound) return;
+    _beginHistory();
     if (selKind == SelKind.layer) {
       doc!.layers.removeAt(selIndex);
-    } else if (selKind == SelKind.sound) {
-      doc!.sounds.removeAt(selIndex);
     } else {
-      return;
+      doc!.sounds.removeAt(selIndex);
     }
     _clearSelection();
+    _commitHistory();
     notifyListeners();
   }
 
   void toggleVisible(int i) {
+    _beginHistory();
     doc!.layers[i].visible = !doc!.layers[i].visible;
+    _commitHistory();
     notifyListeners();
   }
 
   void togglePreview() {
     final l = selectedLayer;
     if (l == null) return;
+    _beginHistory();
     l.preview = !l.preview;
+    _commitHistory();
     notifyListeners();
   }
 
@@ -348,19 +413,25 @@ class EditorController extends ChangeNotifier {
   }
 
   void setImageFile(int langIndex, String file) {
+    _beginHistory();
     selectedLayer?.images[langIndex].file = file;
+    _commitHistory();
     notifyListeners();
   }
 
   void setImagePopup(int langIndex, String popup) {
+    _beginHistory();
     selectedLayer?.images[langIndex].popup = popup;
+    _commitHistory();
     notifyListeners();
   }
 
   // ---------- sounds ----------
   void addSound() {
+    _beginHistory();
     doc!.sounds.add(EditorSound('sound_${doc!.sounds.length + 1}.mp3')
       ..anims.add(Anim(AnimType.sound, start: playhead, end: playhead + 200)));
+    _commitHistory();
     selectSound(doc!.sounds.length - 1);
   }
 
@@ -369,10 +440,12 @@ class EditorController extends ChangeNotifier {
     final i = selIndex, j = i + dir;
     final ss = doc!.sounds;
     if (j < 0 || j >= ss.length) return;
+    _beginHistory();
     final tmp = ss[i];
     ss[i] = ss[j];
     ss[j] = tmp;
     selIndex = j;
+    _commitHistory();
     notifyListeners();
   }
 
@@ -380,7 +453,9 @@ class EditorController extends ChangeNotifier {
   void addAnim(AnimType type) {
     final l = selectedLayer;
     final s = selectedSound;
+    if (l == null && s == null) return;
     final start = playhead;
+    _beginHistory();
     if (l != null) {
       l.anims.add(Anim(type, start: start, end: start + 200));
       selAnim = l.anims.length - 1;
@@ -388,20 +463,25 @@ class EditorController extends ChangeNotifier {
       s.anims.add(Anim(AnimType.sound, start: start, end: start + 200));
       selAnim = s.anims.length - 1;
     }
+    _commitHistory();
     notifyListeners();
   }
 
   void deleteAnim() {
     if (currentAnim == null) return;
+    _beginHistory();
     selectedAnims.removeAt(selAnim);
     selAnim = selectedAnims.isEmpty ? -1 : 0;
+    _commitHistory();
     notifyListeners();
   }
 
   void editAnim(void Function(Anim a) fn) {
     final a = currentAnim;
     if (a == null) return;
+    _beginHistory();
     fn(a);
+    _commitHistory();
     notifyListeners();
   }
 }

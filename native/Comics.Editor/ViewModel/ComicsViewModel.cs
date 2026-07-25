@@ -244,9 +244,18 @@ namespace Comics.Editor.ViewModel
 			SelectedItem = Sounds.LastOrDefault();
 		}
 
+		// Прогоняет каждое изображение документа через текущую логику тайлинга/
+		// пересчёта размеров (FileManager.UpdateTiles), копируя файл через временную
+		// папку и вызывая Image.Update(...) — тот же метод, что обычная замена файла
+		// изображения. Доступно пользователю через кнопку «Convert» в Settings
+		// (Controls/SettingsControl.xaml, ConvertCommand). Возможный сценарий
+		// использования — принудительная перенормализация изображений документа,
+		// созданного/отредактированного в другой версии редактора. Оставлено по
+		// решению пользователя (sdd-comics-editor-v2.9-fixes2, 2026-07-25) —
+		// происхождение исходного TODO не установлено (git-история репозитория
+		// начинается с единого squash-коммита переноса v2.8).
 		public void Convert()
 		{
-			// TODO remove convert functionality
 			var backgrounds = Path.Combine(FileManager.TempFolder, "backgrounds");
 			if (Directory.Exists(backgrounds))
 				Directory.Delete(backgrounds, true);

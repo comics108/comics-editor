@@ -96,6 +96,18 @@ class TopBar extends StatelessWidget {
           const SizedBox(width: 8),
           HsIconButton(Icons.ios_share,
               size: ff.iconBtn, onTap: () => _export(context)),
+          // sdd-comics-editor-v2.9-fixes2: Undo/Redo (Ctrl+Z/Ctrl+Shift+Z также
+          // работают — см. Shortcuts/Actions в editor_screen.dart).
+          const SizedBox(width: 8),
+          HsIconButton(Icons.undo,
+              size: ff.iconBtn,
+              tooltip: 'Undo',
+              onTap: c.canUndo ? c.undo : null),
+          const SizedBox(width: 8),
+          HsIconButton(Icons.redo,
+              size: ff.iconBtn,
+              tooltip: 'Redo',
+              onTap: c.canRedo ? c.redo : null),
           if (!compact) ...[
             const SizedBox(width: 14),
             const _Divider(),
