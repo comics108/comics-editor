@@ -29,7 +29,12 @@ esac
 shift
 
 image="comics-editor-${target}-build:local"
-docker build -f "docker/${target}-build.Dockerfile" -t "$image" docker
+# Оба образа зависят от Flutter Linux SDK, который публикуется только под amd64
+# (см. flows/sdd-comics-editor-build/_status.md) — платформа зафиксирована явно,
+# иначе `docker build` берёт архитектуру хоста и на Apple Silicon попадает в
+# нерабочую qemu-binfmt эмуляцию вместо рабочей VM-эмуляции Docker Desktop.
+platform=linux/amd64
+docker build --platform "$platform" -f "docker/${target}-build.Dockerfile" -t "$image" docker
 
 # Дефолтные verification-последовательности — дословно те же, что в build.yml
 # (Native Build) и docker-build.yml (Docker Build); синхронизировать все три при
@@ -52,11 +57,11 @@ if [ -z "${CI:-}" ]; then
 fi
 
 if [ "$#" -gt 0 ]; then
-  exec docker run --rm -v "$(pwd):/workspace" -w /workspace "${user_flags[@]}" "$image" "$@"
+  exec docker run --rm --platform "$platform" -v "$(pwd):/workspace" -w /workspace "${user_flags[@]}" "$image" "$@"
 fi
 
 case "$target" in
   linux) cmd="$default_linux_cmd" ;;
   android) cmd="$default_android_cmd" ;;
 esac
-exec docker run --rm -v "$(pwd):/workspace" -w /workspace "${user_flags[@]}" "$image" bash -c "$cmd"
+exec docker run --rm --platform "$platform" -v "$(pwd):/workspace" -w /workspace "${user_flags[@]}" "$image" bash -c "$cmd"

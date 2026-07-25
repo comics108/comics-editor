@@ -36,9 +36,15 @@ RUN curl -fsSL "https://storage.googleapis.com/flutter_infra_release/releases/st
     && rm /tmp/flutter.tar.xz
 ENV PATH="/opt/flutter/bin:${PATH}"
 
-RUN git config --global --add safe.directory '*' \
+RUN git config --system --add safe.directory '*' \
     && flutter config --no-analytics --enable-linux-desktop \
     && flutter precache --linux \
     && flutter --version
+
+# Локально контейнер запускается от UID хоста (tool/docker-build.sh), чтобы
+# артефакты сборки на bind-mounted /workspace не были root-owned — поэтому
+# тулчейн, собранный на этапе build от root, должен быть доступен на запись
+# любому пользователю (Flutter пишет кэш-файлы в свой каталог при каждом запуске).
+RUN chmod -R a+rwX /opt/flutter /usr/share/dotnet
 
 WORKDIR /workspace
