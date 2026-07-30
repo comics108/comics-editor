@@ -79,7 +79,15 @@ class TopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = EditorScope.of(context);
     final ff = formFactorOf(context);
-    final compact = ff.isPhone;
+    // vdd-comics-editor-uiux-lettering: was ff.isPhone only -- at tablet
+    // width (up to 1024px) the full non-compact row (brand + title +
+    // version badge + doc pill + mode switch + all actions + Divider + lang
+    // segmented) genuinely overflows once the mode switch (Task 5.1) is
+    // added. Touch devices generally want the denser layout anyway (this
+    // flow's iPad-first direction), and the compact branch already has a
+    // real Edit/Lettering toggle (icon button) and language picker, not
+    // just a phone-specific stub.
+    final compact = ff.isTouch;
 
     return Container(
       height: compact ? 56 : 60,
@@ -105,6 +113,14 @@ class TopBar extends StatelessWidget {
             ),
             const SizedBox(width: 14),
             _DocPill(name: c.doc!.name),
+            const SizedBox(width: 14),
+            HsSegmented<EditorMode>(
+              values: kEditorModes,
+              labelOf: (m) => m.label,
+              selected: c.mode,
+              height: ff.controlH,
+              onChanged: c.setMode,
+            ),
           ] else
             Expanded(
               child: Text(c.doc!.name,
@@ -113,34 +129,47 @@ class TopBar extends StatelessWidget {
                   overflow: TextOverflow.ellipsis),
             ),
           if (!compact) const Spacer(),
+          if (compact) ...[
+            HsIconButton(
+              c.mode == EditorMode.edit ? Icons.chat_bubble_outline : Icons.edit_outlined,
+              size: ff.iconBtn,
+              tooltip: c.mode == EditorMode.edit ? 'Lettering mode' : 'Edit mode',
+              onTap: c.toggleMode,
+            ),
+            const SizedBox(width: 8),
+          ],
           // actions
           HsIconButton(Icons.add, size: ff.iconBtn, onTap: () => showNewDialog(context)),
           const SizedBox(width: 8),
           HsIconButton(Icons.folder_open_outlined,
               size: ff.iconBtn, onTap: () => showOpenDialog(context)),
           const SizedBox(width: 8),
-          HsButton('Save',
-              icon: Icons.file_download_outlined,
-              variant: HsVariant.save,
-              height: ff.controlH,
-              onTap: () => _saved(context)),
-          // v2.9 обвязка: Export / Save As через системный диалог (file_picker).
-          const SizedBox(width: 8),
-          HsIconButton(Icons.ios_share,
-              size: ff.iconBtn, onTap: () => _export(context)),
-          // sdd-comics-editor-v2.9-fixes2: Undo/Redo (Ctrl+Z/Ctrl+Shift+Z также
-          // работают — см. Shortcuts/Actions в editor_screen.dart).
-          const SizedBox(width: 8),
-          HsIconButton(Icons.undo,
-              size: ff.iconBtn,
-              tooltip: 'Undo',
-              onTap: c.canUndo ? c.undo : null),
-          const SizedBox(width: 8),
-          HsIconButton(Icons.redo,
-              size: ff.iconBtn,
-              tooltip: 'Redo',
-              onTap: c.canRedo ? c.redo : null),
+          if (!compact)
+            HsButton('Save',
+                icon: Icons.file_download_outlined,
+                variant: HsVariant.save,
+                height: ff.controlH,
+                onTap: () => _saved(context))
+          else
+            HsIconButton(Icons.file_download_outlined,
+                size: ff.iconBtn, tooltip: 'Save', onTap: () => _saved(context)),
           if (!compact) ...[
+            // v2.9 обвязка: Export / Save As через системный диалог (file_picker).
+            const SizedBox(width: 8),
+            HsIconButton(Icons.ios_share,
+                size: ff.iconBtn, onTap: () => _export(context)),
+            // sdd-comics-editor-v2.9-fixes2: Undo/Redo (Ctrl+Z/Ctrl+Shift+Z также
+            // работают — см. Shortcuts/Actions в editor_screen.dart).
+            const SizedBox(width: 8),
+            HsIconButton(Icons.undo,
+                size: ff.iconBtn,
+                tooltip: 'Undo',
+                onTap: c.canUndo ? c.undo : null),
+            const SizedBox(width: 8),
+            HsIconButton(Icons.redo,
+                size: ff.iconBtn,
+                tooltip: 'Redo',
+                onTap: c.canRedo ? c.redo : null),
             const SizedBox(width: 14),
             const _Divider(),
             const SizedBox(width: 14),
@@ -152,13 +181,24 @@ class TopBar extends StatelessWidget {
               onChanged: c.setLanguage,
             ),
           ] else ...[
+            // Compact width can't fit export/undo/redo/language as their own
+            // icons alongside mode-toggle/new/open/save (found the hard way:
+            // seven+ 44px targets don't fit a phone-width row) -- consolidated
+            // into one overflow menu rather than dropping any capability.
             const SizedBox(width: 8),
-            PopupMenuButton<Lang>(
-              tooltip: 'Language',
-              initialValue: c.lang,
-              onSelected: c.setLanguage,
-              itemBuilder: (_) =>
-                  kLangs.map((l) => PopupMenuItem(value: l, child: Text(l.label))).toList(),
+            PopupMenuButton<void>(
+              tooltip: 'More',
+              itemBuilder: (_) => [
+                PopupMenuItem<void>(onTap: () => _export(context), child: const Text('Export')),
+                PopupMenuItem<void>(
+                    enabled: c.canUndo, onTap: c.undo, child: const Text('Undo')),
+                PopupMenuItem<void>(
+                    enabled: c.canRedo, onTap: c.redo, child: const Text('Redo')),
+                const PopupMenuDivider(),
+                ...kLangs.map((l) => PopupMenuItem<void>(
+                    onTap: () => c.setLanguage(l),
+                    child: Text('Language: ${l.label}'))),
+              ],
               child: Container(
                 width: 44,
                 height: 44,
@@ -166,9 +206,7 @@ class TopBar extends StatelessWidget {
                 decoration: BoxDecoration(
                     border: Border.all(color: Hs.cloud200),
                     borderRadius: BorderRadius.circular(Hs.rBtn)),
-                child: Text(c.lang.label,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w500, color: Hs.primary)),
+                child: const Icon(Icons.more_horiz, color: Hs.primary),
               ),
             ),
           ],

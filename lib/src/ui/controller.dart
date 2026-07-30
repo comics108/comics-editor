@@ -1,12 +1,17 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 // v2.9 обвязка: ядро (процесс на десктопе / NativeAOT+FFI на мобильных).
+import '../ai/balloon_ai_client.dart';
+import '../ai/stub_balloon_ai_client.dart';
 import '../bridge/comics_core.dart';
 import '../bridge/documents.dart';
 import '../bridge/models_mapping.dart';
+import '../i18n/language_registry.dart';
+import '../io/tile_writer.dart';
 import 'edit_history.dart';
 import 'models.dart';
 
@@ -133,13 +138,42 @@ class EditorController extends ChangeNotifier {
 
   bool get coreAvailable => core.isAvailable;
 
+  // vdd-comics-editor-uiux-lettering: dynamic language list (Task 1.4),
+  // loaded once and cached -- backs Images[] slot resolution beyond en/ru/hi
+  // (Task 1.2) in setImageFile/setImagePopup below.
+  //
+  // Deliberately NOT an `async` getter (`Future<T> get x async => ...`):
+  // every *call* to an async function/getter allocates a brand-new Future
+  // for that invocation, even when the body resolves to an already-cached
+  // value -- so widgets that pass `c.languageRegistry` straight into a
+  // `FutureBuilder`'s `future:` (Task 4.3's balloon section, Task 5.3's
+  // Lettering layout) would get a different Future *instance* on every
+  // rebuild, and FutureBuilder treats a changed `future` as "start waiting
+  // again", discarding whatever it already resolved. Caching the Future
+  // object itself (not just the eventual value) keeps repeated accesses
+  // returning the exact same instance, so FutureBuilder settles once.
+  Future<LanguageRegistry>? _languageRegistryFuture;
+  Future<LanguageRegistry> get languageRegistry =>
+      _languageRegistryFuture ??= LanguageRegistry.load();
+
+  /// vdd-comics-editor-uiux-lettering, Task 4.3: client-side AI contract for
+  /// balloon generation (Task 4.1). Stub-backed for now -- no real
+  /// on-device/cloud engine exists yet (03-specifications.md scopes this
+  /// flow to the client contract only), but `BalloonEditorCard` needs a
+  /// concrete instance to render, and swapping in a real implementation
+  /// later is just replacing this one field, not touching UI code.
+  final BalloonAiClient aiClient = StubBalloonAiClient();
+
   /// Открывает .comics/.puzzle через Comics.Editor.Headless.
   Future<bool> openPath(String path) async {
     try {
       final result =
           await core.call('openComics', {'path': path}) as Map<String, dynamic>;
-      coreDoc =
-          comicsFromCore(result['comics'] as Map<String, dynamic>, path);
+      coreDoc = comicsFromCore(
+        result['comics'] as Map<String, dynamic>,
+        path,
+        tempFolder: result['tempFolder'] as String?,
+      );
       doc = coreDoc!.doc;
       coreError = null;
       resetViewport();
@@ -296,6 +330,74 @@ class EditorController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// vdd-comics-editor-uiux-lettering, Task 5.1: Edit/Lettering mode switch
+  /// (top bar). View-only, not persisted -- same treatment as [lang].
+  EditorMode mode = EditorMode.edit;
+  void setMode(EditorMode m) {
+    if (mode == m) return;
+    mode = m;
+    if (m == EditorMode.lettering) _ensureBalloonSelected();
+    notifyListeners();
+  }
+
+  /// Task 5.3: "Lands on the first balloon ... if all are complete" --
+  /// simplified to "first balloon/caption layer in document order" rather
+  /// than discerning per-language artwork completeness here, which would
+  /// need a target language + LanguageRegistry this controller-level method
+  /// doesn't have handy; the rail lets the user jump anywhere in one tap
+  /// regardless. No-op if the current selection is already a balloon/caption,
+  /// or if the document has none.
+  void _ensureBalloonSelected() {
+    final indices = _balloonIndices();
+    if (indices.isEmpty) return;
+    if (selKind == SelKind.layer && indices.contains(selIndex)) return;
+    selectLayer(indices.first);
+  }
+
+  void toggleMode() =>
+      setMode(mode == EditorMode.edit ? EditorMode.lettering : EditorMode.edit);
+
+  /// vdd-comics-editor-uiux-lettering, Task 5.5: deselects the current layer
+  /// without leaving Lettering mode -- backs the iPhone two-screen flow's
+  /// "< Balloons" button (balloon editor screen -> balloon list screen).
+  void deselectForLettering() {
+    _clearSelection();
+    notifyListeners();
+  }
+
+  List<int> _balloonIndices() {
+    final d = doc;
+    if (d == null) return const [];
+    bool isBalloonKind(EditorLayer l) => l.kind == 'balloon' || l.kind == 'caption';
+    return [for (var i = 0; i < d.layers.length; i++) if (isBalloonKind(d.layers[i])) i];
+  }
+
+  /// vdd-comics-editor-uiux-lettering, Task 5.6: 1-based `(position, total)`
+  /// among balloon/caption layers in document order (the same order
+  /// [BalloonRail] lists them) for the current selection -- backs the
+  /// `N/M` counter shown alongside prev/next. Null if nothing selected, the
+  /// selection isn't a balloon/caption layer, or the document has none.
+  ({int position, int total})? balloonStepInfo() {
+    final indices = _balloonIndices();
+    if (indices.isEmpty || selKind != SelKind.layer) return null;
+    final pos = indices.indexOf(selIndex);
+    if (pos == -1) return null;
+    return (position: pos + 1, total: indices.length);
+  }
+
+  /// Steps the selection to the next ([direction] > 0) or previous
+  /// ([direction] < 0) balloon/caption layer, without leaving Lettering
+  /// mode. Clamped at the ends (no wraparound) -- a no-op past the first/
+  /// last balloon, or if the document has none. If nothing balloon-like is
+  /// currently selected, starts from the first one.
+  void stepBalloon(int direction) {
+    final indices = _balloonIndices();
+    if (indices.isEmpty) return;
+    final currentPos = selKind == SelKind.layer ? indices.indexOf(selIndex) : -1;
+    final nextPos = (currentPos == -1 ? 0 : currentPos + direction).clamp(0, indices.length - 1);
+    selectLayer(indices[nextPos]);
+  }
+
   void toggleMute() {
     muted = !muted;
     notifyListeners();
@@ -404,6 +506,37 @@ class EditorController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// vdd-comics-editor-uiux-lettering, Task 3.2: sets/clears the selected
+  /// layer's coarse `kind` (local mutation, same shape as [setImageFile] --
+  /// no RPC, per the Phase 2 correction). `null` clears it back to today's
+  /// untyped/generic layer.
+  void setLayerKind(String? kind) {
+    final l = selectedLayer;
+    if (l == null) return;
+    _beginHistory();
+    l.kind = kind;
+    _commitHistory();
+    notifyListeners();
+  }
+
+  /// vdd-comics-editor-uiux-lettering, Task 4.2: sets/clears the selected
+  /// layer's balloon text for [langCode] (local mutation, same shape as
+  /// [setLayerKind]). An empty [text] removes the entry -- mirrors
+  /// `Layer.Translations`' dictionary semantics, where an empty value is
+  /// indistinguishable from unset.
+  void setLayerTranslation(String langCode, String text) {
+    final l = selectedLayer;
+    if (l == null) return;
+    _beginHistory();
+    if (text.isEmpty) {
+      l.translations.remove(langCode);
+    } else {
+      l.translations[langCode] = text;
+    }
+    _commitHistory();
+    notifyListeners();
+  }
+
   /// Drag the selected layer around the canvas (Translate).
   void dragSelected(Offset delta) {
     final l = selectedLayer;
@@ -412,18 +545,83 @@ class EditorController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setImageFile(int langIndex, String file) {
+  /// vdd-comics-editor-uiux-lettering, Task 2.3: tile-writes real artwork
+  /// [bytes] (from a file pick or AI generation) into the document's
+  /// tempFolder (Task 2.2) and points the [langCode] Images[] slot (resolved
+  /// via the LanguageRegistry, Task 1.2) at it. Replaces the old
+  /// hardcoded-placeholder-filename stub, which never wrote real bytes at
+  /// all. No-op if there's no selected layer or no backing core session
+  /// (tempFolder unset) -- e.g. a document opened before a core existed.
+  Future<void> setImageFile(String langCode, Uint8List bytes) async {
+    final layer = selectedLayer;
+    final document = coreDoc;
+    final tempFolder = document?.tempFolder;
+    if (layer == null || document == null || tempFolder == null) return;
+
+    final registry = await languageRegistry;
+    final index = registry.indexFor(langCode);
+    if (index == null) return;
+    final slot = layer.imageSlotFor(langCode, registry);
+
+    final layersDir = '$tempFolder/layers';
+    await deleteTiles(layersDir, slot.file.isEmpty ? null : slot.file);
+    final tiled = await writeTiles(
+        bytes: bytes, layersDir: layersDir, name: '${sanitizeStem(layer.name)}_$langCode');
+
     _beginHistory();
-    selectedLayer?.images[langIndex].file = file;
+    slot.file = tiled.fileTemplate;
+    _commitHistory();
+    setImageDimensions(document, selIndex, index, tiled.width, tiled.height);
+    notifyListeners();
+  }
+
+  /// Same as [setImageFile] but for `Popup` -- unlike `File`, popups are
+  /// never split into 512px tiles (`Image.Update`'s `popup: true` branch
+  /// calls `FileManager.Update`, a plain single-file copy) and carry no
+  /// tracked width/height in the JSON.
+  Future<void> setImagePopup(String langCode, Uint8List bytes) async {
+    final layer = selectedLayer;
+    final document = coreDoc;
+    final tempFolder = document?.tempFolder;
+    if (layer == null || document == null || tempFolder == null) return;
+
+    final registry = await languageRegistry;
+    final slot = layer.imageSlotFor(langCode, registry);
+
+    final layersDir = '$tempFolder/layers';
+    await deleteSingleFile(layersDir, slot.popup.isEmpty ? null : slot.popup);
+    final fileName = await writeSingleFile(
+        bytes: bytes, layersDir: layersDir, name: '${sanitizeStem(layer.name)}_${langCode}_popup');
+
+    _beginHistory();
+    slot.popup = fileName;
     _commitHistory();
     notifyListeners();
   }
 
-  void setImagePopup(int langIndex, String popup) {
-    _beginHistory();
-    selectedLayer?.images[langIndex].popup = popup;
-    _commitHistory();
-    notifyListeners();
+  /// vdd-comics-editor-uiux-lettering, Task 6.1: real file-picker dialog for
+  /// the generic "ARTWORK · PER LANGUAGE" section's `File`/`Popup` fields --
+  /// previously a stub that wrote a fake, never-actually-saved placeholder
+  /// filename. Reads real bytes and writes them through the same tile-write
+  /// path Task 2.3 built for AI-generated artwork. Returns false on cancel
+  /// (not an error) or if there's nothing to write to yet (no open document).
+  Future<bool> pickImageFile(String langCode) async {
+    if (selectedLayer == null || coreDoc?.tempFolder == null) return false;
+    final result = await FilePicker.pickFiles(type: FileType.image, withData: true);
+    final bytes = result?.files.single.bytes;
+    if (bytes == null) return false; // отмена — не ошибка
+    await setImageFile(langCode, bytes);
+    return true;
+  }
+
+  /// Same as [pickImageFile] but for `Popup`.
+  Future<bool> pickImagePopup(String langCode) async {
+    if (selectedLayer == null || coreDoc?.tempFolder == null) return false;
+    final result = await FilePicker.pickFiles(type: FileType.image, withData: true);
+    final bytes = result?.files.single.bytes;
+    if (bytes == null) return false;
+    await setImagePopup(langCode, bytes);
+    return true;
   }
 
   // ---------- sounds ----------

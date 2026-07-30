@@ -27,6 +27,17 @@ class Hs {
   static const coral500 = Color(0xFFFE835D); // cancel / delete / sound
   static const red500 = Color(0xFFFF5E5E);
 
+  // vdd-comics-editor-uiux-lettering: kind-chip tokens, outside the existing
+  // sky-blue/coral vocabulary. violet/amber are from the approved
+  // design/comics-editor-lettering-maket.pdf (balloon/caption); teal/indigo
+  // extend the same chip to the fuller background/character/balloon/sound
+  // taxonomy explored in flows/vdd-comics-editor-jhanava/ -- `kind` stays an
+  // open string either way, this is just chip styling for values it may hold.
+  static const violet500 = Color(0xFF7B5CD6); // balloon/speech kind
+  static const amber500 = Color(0xFFB8820F); // caption kind
+  static const teal500 = Color(0xFF2E9E83); // background kind
+  static const indigo500 = Color(0xFF5B6EE1); // character kind
+
   // semantic
   static const primary = blue500;
   static const primaryHover = blue600;

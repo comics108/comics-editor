@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../i18n/language_registry.dart';
 import '../controller.dart';
+import '../models.dart';
 import '../responsive.dart';
 import '../theme.dart';
+import '../widgets/balloon_editor_card.dart';
+import '../widgets/balloon_rail.dart';
 import '../widgets/canvas_view.dart';
+import '../widgets/common.dart';
 import '../widgets/dialogs.dart';
 import '../widgets/properties_panel.dart';
 import '../widgets/scene_panel.dart';
@@ -63,11 +68,17 @@ class EditorScreen extends StatelessWidget {
                     ),
                     const Divider(height: 1, color: Hs.divider),
                     Expanded(
-                      child: switch (ff) {
-                        FormFactor.desktop => const _DesktopBody(),
-                        FormFactor.tablet => const _TabletBody(),
-                        FormFactor.phone => const _PhoneBody(),
-                      },
+                      child: c.mode == EditorMode.lettering
+                          ? switch (ff) {
+                              FormFactor.desktop => const _LetteringDesktopBody(),
+                              FormFactor.tablet => const _LetteringTabletBody(),
+                              FormFactor.phone => const _LetteringPhoneBody(),
+                            }
+                          : switch (ff) {
+                              FormFactor.desktop => const _DesktopBody(),
+                              FormFactor.tablet => const _TabletBody(),
+                              FormFactor.phone => const _PhoneBody(),
+                            },
                     ),
                   ],
                 ),
@@ -75,6 +86,269 @@ class EditorScreen extends StatelessWidget {
             ),
           ),
         );
+      },
+    );
+  }
+}
+
+// ---------------- lettering mode ----------------
+
+bool _isBalloonKind(EditorLayer? l) => l != null && (l.kind == 'balloon' || l.kind == 'caption');
+
+/// vdd-comics-editor-uiux-lettering, Task 5.6: `[<] N/M [>]` prev/next
+/// stepper, shared across all three platform Lettering layouts
+/// (`02-visual.md`'s `[<prev] N/M [next>]` header element). Renders nothing
+/// when there's no balloon-step position to show (no balloon/caption layers,
+/// or nothing selected) -- callers don't need to guard on that themselves.
+class _BalloonStepper extends StatelessWidget {
+  const _BalloonStepper(this.c, {this.compact = false});
+  final EditorController c;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final info = c.balloonStepInfo();
+    if (info == null) return const SizedBox.shrink();
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      HsIconButton(Icons.chevron_left,
+          size: compact ? 32 : 28,
+          tooltip: 'Previous balloon',
+          onTap: info.position > 1 ? () => c.stepBalloon(-1) : null),
+      Text('${info.position}/${info.total}',
+          style: const TextStyle(
+              fontSize: 13, fontWeight: FontWeight.w500, color: Hs.textSecondary)),
+      HsIconButton(Icons.chevron_right,
+          size: compact ? 32 : 28,
+          tooltip: 'Next balloon',
+          onTap: info.position < info.total ? () => c.stepBalloon(1) : null),
+    ]);
+  }
+}
+
+/// vdd-comics-editor-uiux-lettering, Task 5.3: three-pane desktop Lettering
+/// layout (`02-visual.md`'s "Screen: Lettering mode — Desktop") -- same
+/// frame as `_DesktopBody`, with the balloon rail where Scene normally
+/// sits and the balloon editor where Properties normally sits. The canvas
+/// in the middle is the existing [CanvasView] unmodified: it already draws
+/// selection handles around whichever layer is selected
+/// (`c.selKind == SelKind.layer && c.selIndex == i`), and [BalloonRail]
+/// selects through the same `EditorController.selectLayer`, so "current
+/// balloon highlighted in context on the full page" falls out for free.
+class _LetteringDesktopBody extends StatelessWidget {
+  const _LetteringDesktopBody();
+  @override
+  Widget build(BuildContext context) {
+    final c = EditorScope.of(context);
+    return Padding(
+      padding: const EdgeInsets.all(10),
+      child: Row(children: [
+        SizedBox(
+          width: 300,
+          child: PanelCard(
+            child: FutureBuilder<LanguageRegistry>(
+              future: c.languageRegistry,
+              builder: (context, snapshot) {
+                final registry = snapshot.data;
+                if (registry == null) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                return BalloonRail(c, registry: registry, langCode: c.lang.name);
+              },
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        const Expanded(child: CanvasView()),
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 330,
+          child: PanelCard(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              if (c.balloonStepInfo() != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
+                  child: Align(alignment: Alignment.centerRight, child: _BalloonStepper(c)),
+                ),
+              Expanded(
+                child: _isBalloonKind(c.selectedLayer)
+                    ? Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: SingleChildScrollView(
+                          child: FutureBuilder<LanguageRegistry>(
+                            future: c.languageRegistry,
+                            builder: (context, snapshot) {
+                              final registry = snapshot.data;
+                              if (registry == null) {
+                                return const Center(child: CircularProgressIndicator());
+                              }
+                              return BalloonEditorCard(
+                                key: ValueKey(c.selectedLayer),
+                                controller: c,
+                                layer: c.selectedLayer!,
+                                registry: registry,
+                                aiClient: c.aiClient,
+                              );
+                            },
+                          ),
+                        ),
+                      )
+                    : const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Text('Select a balloon or caption layer from the rail',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: Hs.textTertiary, fontSize: 14)),
+                        ),
+                      ),
+              ),
+            ]),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+/// vdd-comics-editor-uiux-lettering, Task 5.4: iPad-landscape Lettering
+/// layout (`02-visual.md`'s "Screen: Lettering mode — iPad landscape
+/// (primary target)") -- two-pane, no canvas (unlike desktop's three-pane):
+/// a narrower rail and a large, touch-first balloon editor filling the rest
+/// of the width. Omitting the canvas here (vs. Task 5.3's desktop layout)
+/// is deliberate per the visual spec, to keep touch targets large on the
+/// tighter landscape viewport rather than squeezing in a third pane.
+/// Prev/next stepping (Task 5.6, the `[<prev] N/M [next>]` header element in
+/// the mockup) is shared across all three platform layouts.
+class _LetteringTabletBody extends StatelessWidget {
+  const _LetteringTabletBody();
+  @override
+  Widget build(BuildContext context) {
+    final c = EditorScope.of(context);
+    return Padding(
+      padding: const EdgeInsets.all(8),
+      child: Row(children: [
+        SizedBox(
+          width: 300,
+          child: PanelCard(
+            child: FutureBuilder<LanguageRegistry>(
+              future: c.languageRegistry,
+              builder: (context, snapshot) {
+                final registry = snapshot.data;
+                if (registry == null) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                return BalloonRail(c, registry: registry, langCode: c.lang.name);
+              },
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: PanelCard(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              if (c.balloonStepInfo() != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                  child: Align(
+                      alignment: Alignment.centerRight,
+                      child: _BalloonStepper(c, compact: true)),
+                ),
+              Expanded(
+                child: _isBalloonKind(c.selectedLayer)
+                    ? Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: SingleChildScrollView(
+                          child: FutureBuilder<LanguageRegistry>(
+                            future: c.languageRegistry,
+                            builder: (context, snapshot) {
+                              final registry = snapshot.data;
+                              if (registry == null) {
+                                return const Center(child: CircularProgressIndicator());
+                              }
+                              return BalloonEditorCard(
+                                key: ValueKey(c.selectedLayer),
+                                controller: c,
+                                layer: c.selectedLayer!,
+                                registry: registry,
+                                aiClient: c.aiClient,
+                              );
+                            },
+                          ),
+                        ),
+                      )
+                    : const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Text('Select a balloon or caption layer from the rail',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: Hs.textTertiary, fontSize: 14)),
+                        ),
+                      ),
+              ),
+            ]),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+/// vdd-comics-editor-uiux-lettering, Task 5.5: iPhone two-screen Lettering
+/// flow (`02-visual.md`'s "Screen: Lettering mode — iPhone") -- a balloon
+/// *list* screen and a balloon *editor* screen, kept at the same one-tap
+/// depth as the other platforms rather than nesting further. Both screens
+/// reuse [BalloonRail]/[BalloonEditorCard] full-width (neither widget
+/// hardcodes a narrow sidebar width -- the caller's constraints decide),
+/// so there's no separate phone-specific rail/card implementation. The
+/// "screen" transition is a simple conditional swap driven by selection
+/// state (matches how every other mode/pane switch in this app works, e.g.
+/// [EditorController.mode] itself), not a pushed route -- back is
+/// [EditorController.deselectForLettering], not `Navigator.pop`.
+class _LetteringPhoneBody extends StatelessWidget {
+  const _LetteringPhoneBody();
+  @override
+  Widget build(BuildContext context) {
+    final c = EditorScope.of(context);
+    return FutureBuilder<LanguageRegistry>(
+      future: c.languageRegistry,
+      builder: (context, snapshot) {
+        final registry = snapshot.data;
+        if (registry == null) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (_isBalloonKind(c.selectedLayer)) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 4, 8, 0),
+                child: Row(children: [
+                  TextButton.icon(
+                    onPressed: c.deselectForLettering,
+                    icon: const Icon(Icons.arrow_back_ios_new, size: 16),
+                    label: const Text('Balloons'),
+                  ),
+                  const Spacer(),
+                  _BalloonStepper(c, compact: true),
+                ]),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: SingleChildScrollView(
+                    child: BalloonEditorCard(
+                      key: ValueKey(c.selectedLayer),
+                      controller: c,
+                      layer: c.selectedLayer!,
+                      registry: registry,
+                      aiClient: c.aiClient,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        }
+        return BalloonRail(c, registry: registry, langCode: c.lang.name);
       },
     );
   }

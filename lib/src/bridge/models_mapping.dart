@@ -11,11 +11,18 @@ import '../ui/models.dart';
 /// и при сохранении редактируемые поля вливаются обратно в него — данные,
 /// не представленные в UI, не теряются.
 class CoreDocument {
-  CoreDocument(this.doc, this.raw, this.path);
+  CoreDocument(this.doc, this.raw, this.path, {this.tempFolder});
 
   final ComicsDoc doc;
   final Map<String, dynamic> raw;
   String path;
+
+  /// vdd-comics-editor-uiux-lettering, Task 2.1: the core's working directory
+  /// for this open document (`openComics`'s `tempFolder` response field, same
+  /// value `ping` returns) -- where `layers/*.png` tiles actually live on
+  /// disk between `openComics` and `saveComics`. Null only for documents with
+  /// no backing core session (e.g. [ComicsDoc.clone] snapshots).
+  String? tempFolder;
 }
 
 const _typePrefix = 'Comics.Editor.Models.';
@@ -78,8 +85,30 @@ Map<String, dynamic> _animToJson(Anim anim) {
     if (value != defaultValue) json[key] = value;
   }
 
+  // vdd-comics-editor-uiux-lettering, Task 7.1: found via the real-dataset
+  // backward-compat pass -- every Anim subclass on the C# side overrides a
+  // read-only `Type` (AnimTypes enum) property, which Newtonsoft still
+  // serializes (DefaultValueHandling.Ignore only omits it when the value
+  // equals default(AnimTypes), i.e. Translate == 0 -- so only TranslateAnim
+  // entries genuinely lack this key; Rotate/Scale/Alpha/Sound all have it).
+  // It's redundant with `$type` for deserialization (never read back here,
+  // same as the C# side never needs to since the value can't be set), but
+  // omitting it on write meant re-saving silently dropped a real field from
+  // any non-translate animation. AnimTypes' C# declaration order
+  // (Translate/Rotate/Scale/Alpha/Sound) matches AnimType's Dart order
+  // exactly, so `.index` is the right wire value with no lookup table.
+  put('type', anim.type.index);
   put('start', anim.start);
-  put('end', anim.end);
+  // vdd-comics-editor-uiux-lettering, Task 7.1: found via the real-dataset
+  // backward-compat pass -- `end` defaults to 200 (Anim's own field default,
+  // and what _animFromJson parses an absent 'end' back as), not 0 like every
+  // other untouched `put()` call here implicitly assumes. Omitting the
+  // explicit default meant *every* re-save wrote a spurious `end: 200` onto
+  // any animation that never had one, silently drifting real user data on
+  // every open->save cycle -- pre-existing, unrelated to this flow's own
+  // fields, but a genuine backward-compatibility bug this task's own
+  // verification exists to catch.
+  put('end', anim.end, 200);
   switch (anim.type) {
     case AnimType.translate:
       put('x', anim.x.round());
@@ -89,12 +118,26 @@ Map<String, dynamic> _animToJson(Anim anim) {
       put('pivotX', anim.pivotX);
       put('pivotY', anim.pivotY);
     case AnimType.scale:
-      put('scaleX', anim.scaleX, 1);
-      put('scaleY', anim.scaleY, 1);
+      // vdd-comics-editor-uiux-lettering, Task 7.1: same class of bug as
+      // `end`/`type` above -- DefaultValueHandling.Ignore on the C# side
+      // compares against default(double) == 0, not the app's "new anim"
+      // initial value of 1 (no [DefaultValue] attribute on ScaleX/ScaleY to
+      // override that). A scale anim explicitly at 1.0 (full scale, an
+      // extremely common real value) was being wrongly treated as "default,
+      // omit" here and silently dropped from re-saved JSON. The parse side
+      // (_animFromJson's `_asDouble(json['scaleX'], 1)`) is correct as-is
+      // and unrelated to this: it mirrors the C# object's Init()-assigned
+      // value of 1, which deserialization leaves untouched when the key is
+      // genuinely absent -- Newtonsoft only overwrites properties actually
+      // present in the incoming JSON.
+      put('scaleX', anim.scaleX);
+      put('scaleY', anim.scaleY);
       put('pivotX', anim.pivotX);
       put('pivotY', anim.pivotY);
     case AnimType.alpha:
-      put('alpha', anim.alpha, 1);
+      // Same fix as scaleX/scaleY above -- default(double) == 0 on the C#
+      // side, not the app's "new anim" initial value of 1.
+      put('alpha', anim.alpha);
     case AnimType.sound:
       break;
   }
@@ -102,7 +145,7 @@ Map<String, dynamic> _animToJson(Anim anim) {
 }
 
 /// core JSON → документ макета (+ исходный JSON сохраняется в [CoreDocument.raw]).
-CoreDocument comicsFromCore(Map<String, dynamic> raw, String path) {
+CoreDocument comicsFromCore(Map<String, dynamic> raw, String path, {String? tempFolder}) {
   final name = path.split(Platform.pathSeparator).last;
   final isPuzzle = name.endsWith('.puzzle');
   final doc = ComicsDoc(
@@ -119,7 +162,15 @@ CoreDocument comicsFromCore(Map<String, dynamic> raw, String path) {
         ? ((images.first as Map<String, dynamic>)['file'] as String? ?? '')
         : '';
     final uiLayer = EditorLayer(firstFile.isEmpty ? 'layer' : firstFile)
-      ..preview = layer['preview'] == true;
+      ..preview = layer['preview'] == true
+      ..kind = layer['kind'] as String?
+      ..style = layer['style'] as String?;
+    final translations = layer['translations'] as Map?;
+    if (translations != null) {
+      translations.forEach((key, value) {
+        uiLayer.translations[key as String] = value as String? ?? '';
+      });
+    }
     uiLayer.images.clear();
     for (final imageJson in images) {
       final image = imageJson as Map<String, dynamic>;
@@ -155,7 +206,55 @@ CoreDocument comicsFromCore(Map<String, dynamic> raw, String path) {
     doc.sounds.add(uiSound);
   }
 
-  return CoreDocument(doc, raw, path);
+  return CoreDocument(doc, raw, path, tempFolder: tempFolder);
+}
+
+/// vdd-comics-editor-uiux-lettering, Task 2.3: width/height aren't part of
+/// the UI model (see [CoreDocument]'s doc comment -- they're format fields
+/// the UI never edits, preserved via [CoreDocument.raw] as-is). A caller
+/// that just wrote a brand-new tiled image (Task 2.2) has real pixel
+/// dimensions that must land in the JSON directly, since [comicsToCore]'s
+/// merge only ever touches `file`/`popup`. Grows `raw['layers']` and the
+/// target layer's `images` list as needed so this works for a slot Task 1.2
+/// just extended [EditorLayer.images] with, not only pre-existing ones.
+void setImageDimensions(
+    CoreDocument document, int layerIndex, int imageIndex, int width, int height) {
+  final rawLayers = ((document.raw['layers'] as List?) ?? <dynamic>[]).toList();
+  while (rawLayers.length <= layerIndex) {
+    rawLayers.add(<String, dynamic>{});
+  }
+  final rawLayer = Map<String, dynamic>.from(rawLayers[layerIndex] as Map? ?? {});
+
+  final rawImages = ((rawLayer['images'] as List?) ?? <dynamic>[]).toList();
+  while (rawImages.length <= imageIndex) {
+    rawImages.add(<String, dynamic>{});
+  }
+  final rawImage = Map<String, dynamic>.from(rawImages[imageIndex] as Map? ?? {});
+  rawImage['width'] = width;
+  rawImage['height'] = height;
+  rawImages[imageIndex] = rawImage;
+
+  rawLayer['images'] = rawImages;
+  rawLayers[layerIndex] = rawLayer;
+  document.raw['layers'] = rawLayers;
+}
+
+/// vdd-comics-editor-uiux-lettering, Task 4.2: read counterpart to
+/// [setImageDimensions] -- the balloon editor card's artwork preview needs
+/// real width/height to stitch tiles (`stitchImage` in `tile_writer.dart`),
+/// which live only in [CoreDocument.raw]. Returns null if the layer/slot
+/// isn't present or has no recorded dimensions.
+({int width, int height})? imageDimensions(
+    CoreDocument document, int layerIndex, int imageIndex) {
+  final rawLayers = document.raw['layers'] as List?;
+  if (rawLayers == null || layerIndex < 0 || layerIndex >= rawLayers.length) return null;
+  final rawImages = (rawLayers[layerIndex] as Map)['images'] as List?;
+  if (rawImages == null || imageIndex < 0 || imageIndex >= rawImages.length) return null;
+  final rawImage = rawImages[imageIndex] as Map;
+  final width = (rawImage['width'] as num?)?.toInt();
+  final height = (rawImage['height'] as num?)?.toInt();
+  if (width == null || height == null) return null;
+  return (width: width, height: height);
 }
 
 /// Вливает редактируемые поля документа обратно в исходный JSON ядра.
@@ -194,6 +293,25 @@ Map<String, dynamic> _mergeLayer(EditorLayer layer, Map<String, dynamic> raw) {
     raw['preview'] = true;
   } else {
     raw.remove('preview');
+  }
+
+  // vdd-comics-editor-uiux-lettering: additive fields, mirror Layer.cs's
+  // DefaultValueHandling.Ignore — omit the key entirely when unset/empty
+  // rather than writing null/{} so legacy layers stay byte-identical.
+  if (layer.kind != null && layer.kind!.isNotEmpty) {
+    raw['kind'] = layer.kind;
+  } else {
+    raw.remove('kind');
+  }
+  if (layer.style != null && layer.style!.isNotEmpty) {
+    raw['style'] = layer.style;
+  } else {
+    raw.remove('style');
+  }
+  if (layer.translations.isNotEmpty) {
+    raw['translations'] = Map<String, String>.from(layer.translations);
+  } else {
+    raw.remove('translations');
   }
 
   final rawImages = (raw['images'] as List? ?? const []);

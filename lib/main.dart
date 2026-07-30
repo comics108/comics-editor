@@ -2,12 +2,17 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import 'src/app_version.dart';
 import 'src/bridge/wpf_editor_view.dart';
 import 'src/ui/controller.dart';
 import 'src/ui/screens/editor_screen.dart';
 import 'src/ui/theme.dart';
 
-void main() => runApp(const ComicsEditorApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await AppVersion.load();
+  runApp(const ComicsEditorApp());
+}
 
 /// Comics Editor v2.9.
 ///

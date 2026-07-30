@@ -1,9 +1,26 @@
 import 'package:flutter/widgets.dart';
 
+import '../i18n/language_registry.dart';
+
 /// Domain model — mirrors the WPF Comics.Editor models 1:1
 /// (Layer, Sound, Anim + AnimTypes, Cultures) with no invented functionality.
 
 enum DocType { comics, puzzle }
+
+/// vdd-comics-editor-uiux-lettering, Task 5.1: view-only UI state (not
+/// persisted -- like `EditorController.lang`, this lives entirely on the
+/// controller). `edit` is today's existing workspace; `lettering` swaps the
+/// left+right panes for the balloon rail + balloon editor (Phase 5).
+enum EditorMode { edit, lettering }
+
+extension EditorModeLabel on EditorMode {
+  String get label => switch (this) {
+        EditorMode.edit => 'Edit',
+        EditorMode.lettering => 'Lettering',
+      };
+}
+
+const kEditorModes = EditorMode.values;
 
 enum Lang { en, ru, hi }
 
@@ -89,6 +106,39 @@ class EditorLayer {
   double size = 0.5; // fraction of page width, for the placeholder swatch
   Color swatch = const Color(0xFF57422D);
 
+  /// vdd-comics-editor-uiux-lettering: coarse layer classification, mirrors
+  /// Layer.Kind in the core (open string, e.g. "balloon"/"caption"; null =
+  /// today's untyped/generic layer). Kept nullable, not defaulted to '',
+  /// so "unset" round-trips as absent in JSON rather than an empty string.
+  String? kind;
+
+  /// Balloon-specific refinement of [kind] (e.g. "speech"/"hand_lettered").
+  /// Mirrors Layer.Style; meaningless when kind != "balloon".
+  String? style;
+
+  /// Per-language balloon text, keyed by ISO language code. Mirrors
+  /// Layer.Translations; independent of [images] — a language can have text
+  /// here with no rendered artwork yet.
+  final Map<String, String> translations = {};
+
+  /// vdd-comics-editor-uiux-lettering, Task 1.2: resolves [langCode] to its
+  /// [LanguageRegistry] slot index and returns that [LayerImage], extending
+  /// [images] with empty placeholders as needed. Pure Dart, additive-only --
+  /// en/ru/hi always land at their existing Cultures-aligned indices 0/1/2;
+  /// anything else appends at the registry's fixed, append-only position.
+  /// Calling this twice for the same code returns the same slot, never a
+  /// duplicate.
+  LayerImage imageSlotFor(String langCode, LanguageRegistry registry) {
+    final index = registry.indexFor(langCode);
+    if (index == null) {
+      throw ArgumentError.value(langCode, 'langCode', 'Unknown language code');
+    }
+    while (images.length <= index) {
+      images.add(LayerImage());
+    }
+    return images[index];
+  }
+
   /// Deep copy — for undo/redo snapshots (see [ComicsDoc.clone]). The
   /// constructor auto-seeds default `images`/`anims`, so those are cleared
   /// and replaced with real deep copies.
@@ -97,11 +147,14 @@ class EditorLayer {
       ..visible = visible
       ..preview = preview
       ..size = size
-      ..swatch = swatch;
+      ..swatch = swatch
+      ..kind = kind
+      ..style = style;
     copy.images.clear();
     copy.images.addAll(images.map((i) => i.clone()));
     copy.anims.clear();
     copy.anims.addAll(anims.map((a) => a.clone()));
+    copy.translations.addAll(translations);
     return copy;
   }
 }

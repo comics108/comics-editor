@@ -1,0 +1,25 @@
+{
+  "_comment": "vdd-comics-editor-uiux-lettering: canonical language <-> array-index table. Order matters -- append-only, never reorder or delete an entry, indices back the additive Images[] slot extension (Task 1.2) and must stay stable across app versions. The first three entries (en/ru/hi) are fixed by the native Cultures enum (native/Comics.Editor/Models/Cultures.cs: En=0, Ru=1, Hi=2) and are load-bearing -- do not reorder them. Seeded from apps/comics-ai-baloons/scripts/languages.py's own LANGUAGES table, same order, so the two stay index-compatible if they ever need to interoperate on the same file. This registry is intentionally data-driven: adding a language means editing this file, not shipping new Dart code.",
+  "languages": [
+    { "code": "en", "name": "English", "nativeName": "English" },
+    { "code": "ru", "name": "Russian", "nativeName": "Русский" },
+    { "code": "hi", "name": "Hindi", "nativeName": "हिन्दी" },
+    { "code": "uk", "name": "Ukrainian", "nativeName": "Українська" },
+    { "code": "th", "name": "Thai", "nativeName": "ไทย" },
+    { "code": "zh", "name": "Chinese", "nativeName": "中文" },
+    { "code": "ko", "name": "Korean", "nativeName": "한국어" },
+    { "code": "kn", "name": "Kannada", "nativeName": "ಕನ್ನಡ" },
+    { "code": "es", "name": "Spanish", "nativeName": "Español" },
+    { "code": "fr", "name": "French", "nativeName": "Français" },
+    { "code": "pt", "name": "Portuguese", "nativeName": "Português" },
+    { "code": "ja", "name": "Japanese", "nativeName": "日本語" },
+    { "code": "tr", "name": "Turkish", "nativeName": "Türkçe" },
+    { "code": "vi", "name": "Vietnamese", "nativeName": "Tiếng Việt" },
+    { "code": "ta", "name": "Tamil", "nativeName": "தமிழ்" },
+    { "code": "mr", "name": "Marathi", "nativeName": "मराठी" },
+    { "code": "bn", "name": "Bengali", "nativeName": "বাংলা" },
+    { "code": "ne", "name": "Nepali", "nativeName": "नेपाली" },
+    { "code": "he", "name": "Hebrew", "nativeName": "עברית" },
+    { "code": "ar", "name": "Arabic", "nativeName": "العربية" }
+  ]
+}

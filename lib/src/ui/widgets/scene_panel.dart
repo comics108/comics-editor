@@ -147,6 +147,8 @@ class _LayerRow extends StatelessWidget {
         child: Row(children: [
           HsToggle(value: l.visible, onTap: () => c.toggleVisible(i)),
           const SizedBox(width: 10),
+          _KindChip(l.kind),
+          const SizedBox(width: 8),
           Opacity(opacity: l.visible ? 1 : .4, child: HatchSwatch(l.swatch)),
           const SizedBox(width: 10),
           Expanded(
@@ -159,6 +161,51 @@ class _LayerRow extends StatelessWidget {
           ),
         ]),
       ),
+    );
+  }
+}
+
+/// vdd-comics-editor-uiux-lettering, Task 3.1: coarse layer-kind chip
+/// (`02-visual.md`'s "Scene panel — layer list with kind badges") --
+/// `[Bln]` violet, `[Cap]` amber, `[Art]` neutral gray for every other/unset
+/// kind. A legacy layer (`kind == null`) renders as `[Art]`, visually
+/// identical across the whole list to today's shipped app -- this is the
+/// backward-compat acceptance criterion made visual, not just a data-layer
+/// guarantee. `background`/`character`/`sound` extend the same chip to the
+/// fuller taxonomy explored in `flows/vdd-comics-editor-jhanava/` -- `kind`
+/// is an open string (see `Layer.cs`), so this is purely additive styling,
+/// not a schema change; any value not recognized here still falls back to
+/// the neutral `[Art]` chip.
+class _KindChip extends StatelessWidget {
+  const _KindChip(this.kind);
+  final String? kind;
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color, icon) = switch (kind) {
+      'balloon' => ('Bln', Hs.violet500, Icons.chat_bubble_outline),
+      'caption' => ('Cap', Hs.amber500, Icons.crop_din),
+      'background' => ('Bg', Hs.teal500, Icons.image_outlined),
+      'character' => ('Chr', Hs.indigo500, Icons.person_outline),
+      'sound' => ('Snd', Hs.coral500, Icons.graphic_eq),
+      _ => ('Art', Hs.gray500, null),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .14),
+        borderRadius: BorderRadius.circular(Hs.rChip),
+        border: Border.all(color: color.withValues(alpha: .4)),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        if (icon != null) ...[
+          Icon(icon, size: 11, color: color),
+          const SizedBox(width: 3),
+        ],
+        Text(label,
+            style:
+                TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color)),
+      ]),
     );
   }
 }

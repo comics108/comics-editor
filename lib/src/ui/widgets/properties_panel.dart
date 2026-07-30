@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../../i18n/language_registry.dart';
 import '../controller.dart';
 import '../models.dart';
 import '../theme.dart';
+import 'balloon_editor_card.dart';
 import 'common.dart';
 
 /// Right "Properties" pane — Layer editor (localized artwork + animations)
@@ -88,28 +90,43 @@ class _LayerEditor extends StatelessWidget {
           child: ListView(
             padding: const EdgeInsets.all(14),
             children: [
-              const Text('ARTWORK · PER LANGUAGE', style: kSectionLabel),
-              const SizedBox(height: 10),
-              HsSegmented<Lang>(
-                values: kLangs,
-                labelOf: (x) => x.label,
-                selected: c.lang,
-                height: 32,
-                onChanged: c.setLanguage,
-              ),
-              const SizedBox(height: 12),
-              _FileField('File', img.file.isEmpty ? '— none —' : img.file,
-                  onPick: () => c.setImageFile(c.lang.index, 'picked_${c.lang.label}.png')),
-              const SizedBox(height: 10),
-              _FileField('Popup', img.popup.isEmpty ? '— none —' : img.popup,
-                  onPick: () => c.setImagePopup(c.lang.index, 'popup_${c.lang.label}.png')),
+              _KindField(l.kind, onChanged: c.setLayerKind),
+              const SizedBox(height: 14),
+              if (l.kind == 'balloon')
+                _BalloonSection(c, l)
+              else ...[
+                const Text('ARTWORK · PER LANGUAGE', style: kSectionLabel),
+                const SizedBox(height: 10),
+                HsSegmented<Lang>(
+                  values: kLangs,
+                  labelOf: (x) => x.label,
+                  selected: c.lang,
+                  height: 32,
+                  onChanged: c.setLanguage,
+                ),
+                const SizedBox(height: 12),
+                // Task 6.1: a real file-picker dialog, writing through the
+                // same tile-write path (Task 2.3) AI generation uses.
+                _FileField('File', img.file.isEmpty ? '— none —' : img.file,
+                    onPick: () {
+                  c.pickImageFile(c.lang.name);
+                }),
+                const SizedBox(height: 10),
+                _FileField('Popup', img.popup.isEmpty ? '— none —' : img.popup,
+                    onPick: () {
+                  c.pickImagePopup(c.lang.name);
+                }),
+              ],
               const SizedBox(height: 14),
               InkWell(
                 onTap: c.togglePreview,
                 child: Row(children: [
                   _Check(l.preview),
                   const SizedBox(width: 8),
-                  const Text('Preview this layer', style: TextStyle(fontSize: 14)),
+                  const Expanded(
+                    child: Text('Preview this layer',
+                        overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14)),
+                  ),
                 ]),
               ),
               const SizedBox(height: 18),
@@ -118,6 +135,45 @@ class _LayerEditor extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// vdd-comics-editor-uiux-lettering, Task 4.3: hosts [BalloonEditorCard] in
+/// Edit mode's Properties panel for a `kind == "balloon"` layer -- the same
+/// component Lettering mode (Phase 5) will use, so a user who prefers
+/// staying in Edit mode isn't blocked from basic lettering there too
+/// (`02-visual.md`'s "Component: Balloon editor card"). `LanguageRegistry`
+/// is loaded async (`EditorController.languageRegistry`, cached after the
+/// first load) so this needs a `FutureBuilder`; `key: ValueKey(layer)`
+/// forces a fresh `BalloonEditorCard` state when the selected layer changes
+/// mid-build, matching `_LayerEditor`'s existing no-persistent-widget-key
+/// pattern for a StatelessWidget parent.
+class _BalloonSection extends StatelessWidget {
+  const _BalloonSection(this.c, this.layer);
+  final EditorController c;
+  final EditorLayer layer;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<LanguageRegistry>(
+      future: c.languageRegistry,
+      builder: (context, snapshot) {
+        final registry = snapshot.data;
+        if (registry == null) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+        return BalloonEditorCard(
+          key: ValueKey(layer),
+          controller: c,
+          layer: layer,
+          registry: registry,
+          aiClient: c.aiClient,
+        );
+      },
     );
   }
 }
@@ -338,6 +394,76 @@ class _AddChip extends StatelessWidget {
         child: Text(label,
             style: const TextStyle(fontSize: 12, color: Hs.textSecondary)),
       ),
+    );
+  }
+}
+
+/// vdd-comics-editor-uiux-lettering, Task 3.2: kind-setting dropdown --
+/// resolves Specifications' open design question ("does `kind` get a real
+/// picker, or stay data-only") as a simple dropdown in the per-layer editor,
+/// since this flow has no other per-layer settings surface. Options match
+/// Task 3.1's chip taxonomy exactly (background/character/balloon/caption/
+/// sound + none) so every chip the list can show is reachable/clearable
+/// here. `kind` stays an open string on the model (`Layer.cs`), so a value
+/// already on the layer that isn't one of these -- from a legacy file, or
+/// forward-compat data from `flows/vdd-comics-editor-jhanava/`'s eventual
+/// taxonomy -- is shown verbatim as an extra entry instead of being dropped
+/// or crashing `DropdownButton`'s "value must be among items" assertion.
+class _KindField extends StatelessWidget {
+  const _KindField(this.kind, {required this.onChanged});
+  final String? kind;
+  final ValueChanged<String?> onChanged;
+
+  static const _knownOptions = <String?>[
+    null,
+    'balloon',
+    'caption',
+    'background',
+    'character',
+    'sound',
+  ];
+
+  static String _labelFor(String? kind) => switch (kind) {
+        null => '(none)',
+        'balloon' => 'Balloon',
+        'caption' => 'Caption',
+        'background' => 'Background',
+        'character' => 'Character',
+        'sound' => 'Sound',
+        final other => other,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final options = _knownOptions.contains(kind) ? _knownOptions : [..._knownOptions, kind];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('KIND', style: TextStyle(fontSize: 12, color: Hs.textSecondary)),
+        const SizedBox(height: 4),
+        Container(
+          height: 38,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            border: Border.all(color: Hs.cloud200, width: 2),
+            borderRadius: BorderRadius.circular(Hs.rChip),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String?>(
+              value: kind,
+              isExpanded: true,
+              isDense: true,
+              icon: const Icon(Icons.expand_more, size: 18, color: Hs.textSecondary),
+              style: const TextStyle(fontSize: 14, color: Hs.textBody),
+              items: [
+                for (final option in options)
+                  DropdownMenuItem<String?>(value: option, child: Text(_labelFor(option))),
+              ],
+              onChanged: onChanged,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
