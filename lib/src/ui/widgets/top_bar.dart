@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../app_version.dart';
 import '../controller.dart';
 import '../models.dart';
 import '../responsive.dart';
@@ -7,8 +8,9 @@ import '../theme.dart';
 import 'common.dart';
 import 'dialogs.dart';
 
-/// App brand mark — the stacked-layers glyph (not the HolySpots pin,
-/// which is raster-only and must never be redrawn).
+/// App brand mark — the comics-editor smiley/speech-bubble glyph from
+/// design/comics-editor-logo/app-icon.svg (not the HolySpots pin, which is
+/// raster-only and must never be redrawn).
 class BrandMark extends StatelessWidget {
   const BrandMark({super.key, this.size = 34});
   final double size;
@@ -18,26 +20,56 @@ class BrandMark extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: Hs.blue500,
+        color: const Color(0xFF111111),
         borderRadius: BorderRadius.circular(size * .24),
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          for (final o in [0.95, 0.7, 0.45])
-            Container(
-              width: size * .53,
-              height: size * .12,
-              margin: EdgeInsets.symmetric(vertical: size * .045),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: o),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-        ],
-      ),
+      child: CustomPaint(size: Size(size, size), painter: _BrandGlyphPainter()),
     );
   }
+}
+
+/// Vector redraw of the app-icon.svg mark (400x400 source viewBox): a
+/// speech-bubble smiley in Hs.blue500 with dark eyes/mouth cut in.
+class _BrandGlyphPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.scale(size.width / 400);
+
+    final fill = Paint()..color = Hs.blue500;
+    canvas.drawCircle(const Offset(200, 196), 104, fill);
+    canvas.drawPath(
+      Path()
+        ..moveTo(262, 258)
+        ..cubicTo(292, 320, 272, 360, 212, 380)
+        ..cubicTo(248, 338, 246, 300, 218, 270)
+        ..close(),
+      fill,
+    );
+
+    final stroke = Paint()
+      ..color = const Color(0xFF111111)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 15
+      ..strokeCap = StrokeCap.round;
+    canvas.drawPath(
+        Path()
+          ..moveTo(162, 166)
+          ..relativeQuadraticBezierTo(3, 16, -1, 28),
+        stroke);
+    canvas.drawPath(
+        Path()
+          ..moveTo(236, 164)
+          ..relativeQuadraticBezierTo(5, 15, 1, 29),
+        stroke);
+    canvas.drawPath(
+        Path()
+          ..moveTo(142, 230)
+          ..relativeQuadraticBezierTo(52, 52, 116, -7),
+        stroke);
+  }
+
+  @override
+  bool shouldRepaint(covariant _BrandGlyphPainter oldDelegate) => false;
 }
 
 class TopBar extends StatelessWidget {
@@ -65,8 +97,8 @@ class TopBar extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
                   color: Hs.blue100, borderRadius: BorderRadius.circular(20)),
-              child: const Text('3.0',
-                  style: TextStyle(
+              child: Text(AppVersion.current,
+                  style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
                       color: Hs.blue500)),
