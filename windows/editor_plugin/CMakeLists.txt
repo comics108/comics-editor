@@ -27,14 +27,32 @@ target_link_libraries(${PLUGIN_NAME} PRIVATE flutter flutter_wrapper_plugin)
 #
 # Реактивировано в sdd-comics-editor-v2.9-fixes2 (Track A): editor_plugin.cpp
 # теперь реально грузит Comics.Editor.Flutter.dll через hostfxr
-# (hostfxr_bootstrap.cpp) — т.е. публикация снова нужна. MSB1008 сам по себе
-# не был исправлен (root cause не найден) — если он повторится, здесь есть
-# история трёх раундов диагностики в sdd-comics-editor-build/04-implementation-log.md.
+# (hostfxr_bootstrap.cpp) — т.е. публикация снова нужна, и MSB1008 воспроизвёлся
+# заново на первом же реальном Windows CI-прогоне после реактивации
+# (sdd-comics-editor-build, round 5, 2026-07-30).
+#
+# Round 5 находка: у этого add_custom_target() не было VERBATIM. Flutter's
+# собственный flutter_tools содержит миграцию (cmake_custom_command_migration.dart),
+# которая добавляет VERBATIM ко ВСЕМ add_custom_command() в СВОЁМ сгенерированном
+# CMakeLists.txt со ссылкой именно на баг Visual Studio generator'а с
+# экранированием команд без VERBATIM (flutter/flutter#67270) — то есть Flutter
+# сам уже наступал на этот класс бага и официально задокументировал VERBATIM
+# как фикс. Эта миграция трогает только flutter-managed файлы, не наш —
+# добавляем VERBATIM здесь вручную. Раунды 1-4 (CRLF/call/echo-диагностика/
+# сравнение сгенерированного <Command> построчно с рабочим custom-build-step)
+# сравнивали УЖЕ СГЕНЕРИРОВАННЫЙ XML и не могли увидеть разницу в его источнике —
+# отсутствие VERBATIM меняет то, КАК generator экранирует COMMAND при генерации,
+# не то, как выглядит результат при поверхностном сравнении. Не проверено
+# реальным Windows CI (агент работает на macOS, `flutter build windows`
+# недоступен локально) — история этого бага (sdd-comics-editor-build/
+# 04-implementation-log.md) содержит 4 предыдущих раунда, каждый раз
+# уверенно объяснённых, но не подтверждённых реальным прогоном.
 find_program(DOTNET_EXECUTABLE dotnet)
 if(DOTNET_EXECUTABLE)
   add_custom_target(${PLUGIN_NAME}_csharp ALL
     COMMAND cmd /c call "${CMAKE_CURRENT_SOURCE_DIR}/publish_csharp.cmd" "${CMAKE_BINARY_DIR}/dotnet"
     COMMENT "Publishing Comics.Editor.Flutter (net10.0-windows)…"
+    VERBATIM
   )
   add_dependencies(${PLUGIN_NAME} ${PLUGIN_NAME}_csharp)
 else()

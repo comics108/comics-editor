@@ -17,6 +17,15 @@
 // continued drift: resave #1 -> reopen -> resave #2 must be byte-for-byte
 // (structurally) identical to resave #1's own output, or every open/save
 // cycle would silently keep rewriting the file.
+//
+// dataset/ is a monorepo-level fixture directory, not part of this app's own
+// git history: apps/comics-editor-v2.9 is pushed to its own separate repo
+// (comics108/comics-editor-v2.9), whose tree never includes dataset/ at all --
+// it only resolves locally by directory-nesting coincidence in a full
+// monorepo checkout. Any other clone of this repo (including CI, which
+// checks out only this repo) genuinely cannot have dataset/ present, so this
+// whole file must degrade to a no-op (skipped, not crashed) rather than
+// assume it's always reachable.
 import 'dart:convert';
 import 'dart:io';
 
@@ -30,16 +39,25 @@ void main() {
 
   final repoRoot = Directory(Directory.current.path).parent.parent;
   final datasetDir = Directory('${repoRoot.path}/dataset');
-  final datasetFiles = datasetDir
-      .listSync()
-      .whereType<File>()
-      .where((f) => f.path.endsWith('.comics'))
-      .toList()
-    ..sort((a, b) => a.path.compareTo(b.path));
+  final datasetAvailable = datasetDir.existsSync();
+  final datasetFiles = datasetAvailable
+      ? (datasetDir
+              .listSync()
+              .whereType<File>()
+              .where((f) => f.path.endsWith('.comics'))
+              .toList()
+            ..sort((a, b) => a.path.compareTo(b.path)))
+      : <File>[];
 
-  test('sanity: dataset/ is reachable and has a realistic number of .comics files', () {
-    expect(datasetFiles.length, greaterThanOrEqualTo(20));
-  });
+  test(
+    'sanity: dataset/ is reachable and has a realistic number of .comics files',
+    () {
+      expect(datasetFiles.length, greaterThanOrEqualTo(20));
+    },
+    skip: datasetAvailable
+        ? false
+        : 'dataset/ not present in this checkout (monorepo-only fixture, see file header)',
+  );
 
   for (final file in datasetFiles) {
     final name = file.uri.pathSegments.last;

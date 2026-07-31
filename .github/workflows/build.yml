@@ -34,8 +34,14 @@ jobs:
           cache: true
       - run: flutter pub get
       - run: flutter analyze
-      # widget_test и dart_io_core_test — чистый Dart, без внешних артефактов.
-      - run: flutter test test/widget_test.dart test/dart_io_core_test.dart
+      # widget_test, dart_io_core_test, dataset_backward_compat_test — чистый
+      # Dart, без внешних артефактов/платформенных бинарников. Последний
+      # обычно skip'ается здесь же (dataset/ живёт только в monorepo, не в
+      # этом отдельном git-репозитории apps/comics-editor-v2.9) — но явно
+      # перечислен, чтобы это было видно в CI-выводе, а не только на macOS
+      # job'е (см. build-macos: bare `flutter test` там подхватывает этот
+      # файл тоже, но он теперь сам umеет skip'аться, не крашится).
+      - run: flutter test test/widget_test.dart test/dart_io_core_test.dart test/dataset_backward_compat_test.dart
 
   build-windows:
     name: Windows
