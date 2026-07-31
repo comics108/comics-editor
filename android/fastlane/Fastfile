@@ -18,6 +18,13 @@
 # 5 локалей (ru-RU, en-US, zh-CN, hi-IN, th) — copies of design/store/googleplay-01-1440x2560.png
 # (phoneScreenshots/1.png) и googleplay-cover-1024x500.png (featureGraphic.png). Одни и те же
 # изображения на все локали (переводов текста на скриншотах нет).
+#
+# Текстовые метаданные (sdd-comics-editor-publish, 2026-07-31): fastlane/metadata/android/<locale>/
+# {title,short_description,full_description}.txt для тех же 5 локалей. ru-RU/en-US написаны
+# носителем-уровня уверенности; zh-CN/hi-IN/th — черновой перевод, **нужна проверка носителем
+# языка перед реальной публикацией**. Категория Google Play не входит в этот текстовый набор —
+# fastlane/supply её не поддерживает через файлы, задаётся вручную в Play Console (рекомендация:
+# Art & Design).
 
 default_platform(:android)
 
@@ -33,8 +40,7 @@ platform :android do
 
     upload_to_play_store(
       track: track,
-      aab: "app/build/outputs/bundle/release/app-release.aab",
-      skip_upload_metadata: true
+      aab: "app/build/outputs/bundle/release/app-release.aab"
     )
   end
 end

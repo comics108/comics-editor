@@ -1,0 +1,22 @@
+Comics Editor is an authoring tool for animated, multi-language comics and interactive puzzles — one project, one portable file, played back anywhere.
+
+Build a page from layers — backgrounds, characters, speech balloons, captions, sound — then bring it to life with Translate, Rotate, Scale, and Alpha animations on a shared timeline, synced to sound. Add dialogue and captions per language with the built-in lettering workspace, and export a single self-contained .comics file: a portable, zip-based format any compatible viewer can play back offline, with no server required.
+
+Also supports Puzzle projects: interactive, zoomable jigsaw-style boards built from the same layered artwork.
+
+FEATURES
+• Comics (scrolling, animated, sound-synced) and Puzzle (drag-and-zoom) project types
+• Layers with per-language artwork, reorder, visibility, and on-canvas transforms
+• Translate / Rotate / Scale / Alpha animation, timed on a shared timeline
+• Sound tracks bound to timeline position, with global mute
+• A dynamic, extensible set of supported languages — not a fixed list
+• Undo/redo, native open/save dialogs, pinch/pan/wheel canvas zoom
+• The same project and file format open identically on every platform
+
+PLATFORMS
+Comics Editor runs the same way on Windows, macOS, Linux, iPad, iPhone, and Android, adapting its layout from a full desktop workspace to a focused single-canvas phone view.
+
+WHO IT'S FOR
+Built for comic producers, letterers, and localization teams working across many languages and platforms who need one authoring tool and one portable file format for every target device.
+
+No account, no login, no ads. All project data stays on your device.

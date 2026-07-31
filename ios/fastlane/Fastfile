@@ -22,6 +22,15 @@
 # Скриншоты (sdd-comics-editor-publish): fastlane/screenshots/<locale>/*.png,
 # 5 локалей (ru, en-US, zh-Hans, hi, th) — копии design/store/appstore-01/02-1290x2796.png.
 # Одна и та же пара изображений на все локали (полноценных переводов текста на скриншотах нет).
+#
+# Текстовые метаданные (sdd-comics-editor-publish, 2026-07-31): fastlane/metadata/<locale>/*.txt
+# (name/subtitle/description/keywords/promotional_text/support_url/privacy_url) для тех же 5
+# локалей + account-level (copyright.txt, primary_category.txt, review_information/). ru/en-US
+# написаны носителем-уровня уверенности; zh-Hans/hi/th — черновой перевод, **нужна проверка
+# носителем языка перед реальной публикацией** (не заблокировано на этом — публиковать можно,
+# но текст мог получиться корявым). support_url/privacy_url указывают на
+# comics.nativemind.net/support.html и /policy.html — страницы должны реально существовать
+# на момент публикации, этот flow их не создаёт.
 
 default_platform(:ios)
 
@@ -52,7 +61,6 @@ platform :ios do
     if distribution_lane == "appstore"
       upload_to_app_store(
         api_key: api_key,
-        skip_metadata: true,
         force: true
       )
     else

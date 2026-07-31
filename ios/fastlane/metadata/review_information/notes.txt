@@ -1,0 +1,5 @@
+Comics Editor is an authoring tool for animated, multi-language comics and interactive puzzles, exported to a single portable file (.comics/.puzzle) played back by separate companion viewer apps/libraries.
+
+No account or login is required — all data stays local (open/save comics/puzzle project files via the system file picker). There is no server-side content, no in-app purchases, and no user data is collected or transmitted.
+
+To evaluate: use File > New to start a Comics or Puzzle project, add a layer, and use the Scene/Canvas/Properties panels (desktop) or the equivalent phone/tablet layout to add artwork, animation, and sound. "Lettering" mode lets you enter per-language dialogue text for balloon/caption layers — note that AI-assisted artwork generation for lettering is UI scaffolding only in this build (it returns a deterministic placeholder image, not a real AI-generated result) and is not something reviewers should expect to produce real localized artwork.

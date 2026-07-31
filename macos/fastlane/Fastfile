@@ -73,8 +73,11 @@
 # hi, th) — копии design/store/pc-01-1440x900.png (валидный размер для Mac App
 # Store screenshot, ресайз не нужен). Одно и то же изображение на все локали.
 #
-# skip_metadata: true — как и в ios/fastlane's appstore-лейне: текстовые метаданные
-# (описание, ключевые слова) вне зоны ответственности этого flow.
+# Текстовые метаданные (sdd-comics-editor-publish, 2026-07-31): fastlane/metadata/<locale>/*.txt,
+# те же 5 локалей — тот же контент, что в ios/fastlane/metadata/ (тот же продукт, отдельная
+# App Store Connect запись под ту же связку review_information/copyright/category). ru/en-US
+# написаны носителем-уровня уверенности; zh-Hans/hi/th — черновой перевод, **нужна проверка
+# носителем языка перед реальной публикацией**.
 
 require "shellwords"
 
@@ -145,7 +148,6 @@ platform :macos do
     upload_to_app_store(
       api_key: api_key,
       pkg: pkg_path,
-      skip_metadata: true,
       force: true
     )
   end

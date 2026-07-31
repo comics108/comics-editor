@@ -1,3 +1,0 @@
-Bhagavad Gita reading app. Users read Sanskrit slokas with translations and commentaries, listen to
-audio recitations, bookmark verses, and take notes. No account or login is required — all data is
-stored locally on the device.
