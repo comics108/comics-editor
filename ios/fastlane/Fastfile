@@ -18,6 +18,10 @@
 #        MATCH_GIT_URL, MATCH_PASSWORD — доступ к репозиторию сертификатов match
 #        APPLE_TEAM_ID, ASC_TEAM_ID     — team id разработчика и App Store Connect
 #      и переменную IOS_BUNDLE_ID (по умолчанию net.nativemind.comics.editor).
+#
+# Скриншоты (sdd-comics-editor-publish): fastlane/screenshots/<locale>/*.png,
+# 5 локалей (ru, en-US, zh-Hans, hi, th) — копии design/store/appstore-01/02-1290x2796.png.
+# Одна и та же пара изображений на все локали (полноценных переводов текста на скриншотах нет).
 
 default_platform(:ios)
 
@@ -48,7 +52,6 @@ platform :ios do
     if distribution_lane == "appstore"
       upload_to_app_store(
         api_key: api_key,
-        skip_screenshots: true,
         skip_metadata: true,
         force: true
       )

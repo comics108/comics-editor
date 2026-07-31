@@ -5,9 +5,15 @@ name: Release to stores
 # идут параллельно и падение одной не отменяет и не блокирует другую.
 #
 # Требует секретов/переменных в настройках репозитория (Settings → Secrets and
-# variables → Actions) — см. комментарии в android/fastlane/Fastfile и
-# ios/fastlane/Fastfile. Без них соответствующая job упадёт на шаге fastlane —
-# это ожидаемо, пока реальные credentials не настроены.
+# variables → Actions) — см. комментарии в android/fastlane/Fastfile,
+# ios/fastlane/Fastfile и macos/fastlane/Fastfile. Без них соответствующая job
+# упадёт на шаге fastlane — это ожидаемо, пока реальные credentials не настроены.
+#
+# release-macos использует те же секреты, что release-ios (общий Apple Developer
+# team и match-репозиторий, см. macos/fastlane/Fastfile) — новых секретов не
+# требует, но нуждается в отдельной, ещё не заведённой на момент написания,
+# macOS-записи в App Store Connect и отдельном macOS-сертификате в match
+# (см. macos/fastlane/Fastfile, «Перед первым реальным релизом»).
 
 on:
   workflow_dispatch:
@@ -31,6 +37,7 @@ concurrency:
 
 env:
   FLUTTER_VERSION: "3.44.6"
+  DOTNET_VERSION: "10.0.x"
 
 jobs:
   release-android:
@@ -112,3 +119,39 @@ jobs:
           ASC_TEAM_ID: ${{ secrets.ASC_TEAM_ID }}
           IOS_BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID }}
         run: bundle exec fastlane ios deploy lane:${{ github.event.inputs.ios_lane || 'testflight' }}
+
+  release-macos:
+    name: Mac App Store (macOS)
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+          working-directory: macos
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      # Нужен .NET: macos/fastlane/Fastfile сам публикует headless-ядро
+      # (dotnet publish) и встраивает его в .app до финальной подписи — см.
+      # комментарий в начале этого Fastfile для полного объяснения почему.
+      - run: flutter pub get
+      - name: Deploy via fastlane
+        working-directory: macos
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_CONTENT: ${{ secrets.ASC_KEY_CONTENT }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_TEAM_ID: ${{ secrets.ASC_TEAM_ID }}
+          MACOS_BUNDLE_ID: ${{ vars.MACOS_BUNDLE_ID }}
+        run: bundle exec fastlane macos deploy

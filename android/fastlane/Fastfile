@@ -13,6 +13,11 @@
 #        ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
 #      и переменную ANDROID_PACKAGE_NAME (по умолчанию net.nativemind.comics.editor,
 #      переопределяется только если package name в сторе будет отличаться).
+#
+# Скриншоты (sdd-comics-editor-publish): fastlane/metadata/android/<locale>/images/,
+# 5 локалей (ru-RU, en-US, zh-CN, hi-IN, th) — copies of design/store/googleplay-01-1440x2560.png
+# (phoneScreenshots/1.png) и googleplay-cover-1024x500.png (featureGraphic.png). Одни и те же
+# изображения на все локали (переводов текста на скриншотах нет).
 
 default_platform(:android)
 
@@ -29,9 +34,7 @@ platform :android do
     upload_to_play_store(
       track: track,
       aab: "app/build/outputs/bundle/release/app-release.aab",
-      skip_upload_metadata: true,
-      skip_upload_images: true,
-      skip_upload_screenshots: true
+      skip_upload_metadata: true
     )
   end
 end

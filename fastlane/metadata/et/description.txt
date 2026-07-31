@@ -1,0 +1,10 @@
+MIDA TEHA? Vastust sellele küsimusele on inimkond otsinud juba ammu enne Tšernõševskit. "Bhagavad Gita" - üks maailma vanimaid vaimseid pühakirju - pakub sellele vastuse. Raamat on elav dialoog Krishna ja Arjuna vahel. Enne suurimat lahingut õpetab Krishna oma sõpra, selgitades, mida tuleb teha, et elada selles maailmas õnnelikult ja edukalt, ning avab ka mitmeid vaimse elu tahke.
+
+Rakenduse funktsioonid:
+- Loe endale sobival viisil
+- Võrdle tõlgendusi ja tõlkeid
+- Uuri kommentaare
+- Kuula audioversiooni
+- Tee märkmeid
+
+Naudi suurimat raamatut kaunis ja mugavas vormis, mis on alati sinuga kaasas.

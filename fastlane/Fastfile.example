@@ -1,0 +1,177 @@
+# Fastfile for Flutter Magento Marketplace Example
+# This file contains the fastlane configuration for releasing the marketplace example app
+
+default_platform(:ios)
+
+platform :ios do
+  desc "Build and release marketplace example app to TestFlight"
+  lane :beta do
+    # Ensure we're on a clean git state
+    ensure_git_status_clean
+
+    # Get version from pubspec.yaml
+    version = get_version_from_pubspec
+
+    # Increment build number
+    increment_build_number(
+      xcodeproj: "Runner.xcodeproj"
+    )
+
+    # Build app
+    build_app(
+      workspace: "Runner.xcworkspace",
+      scheme: "Runner",
+      export_method: "app-store",
+      export_options: {
+        provisioningProfiles: {
+          "com.nativemind.exampleMarketplace" => "match AppStore com.nativemind.exampleMarketplace"
+        }
+      }
+    )
+
+    # Upload to TestFlight
+    upload_to_testflight(
+      skip_waiting_for_build_processing: true,
+      changelog: "Marketplace Example v#{version}\n\nNew marketplace features and improvements"
+    )
+
+    # Commit version bump
+    commit_version_bump(
+      message: "Bump build number for marketplace example v#{version}",
+      xcodeproj: "Runner.xcodeproj"
+    )
+
+    # Tag release
+    add_git_tag(
+      tag: "marketplace-v#{version}"
+    )
+  end
+
+  desc "Build for App Store release"
+  lane :release do
+    # Similar to beta but for production release
+    ensure_git_status_clean
+    
+    version = get_version_from_pubspec
+
+    increment_build_number(
+      xcodeproj: "Runner.xcodeproj"
+    )
+
+    build_app(
+      workspace: "Runner.xcworkspace",
+      scheme: "Runner",
+      export_method: "app-store"
+    )
+
+    upload_to_app_store(
+      force: true,
+      skip_metadata: false,
+      skip_screenshots: false,
+      submit_for_review: false
+    )
+
+    commit_version_bump(
+      message: "Release marketplace example v#{version}",
+      xcodeproj: "Runner.xcodeproj"
+    )
+
+    add_git_tag(
+      tag: "marketplace-release-v#{version}"
+    )
+  end
+
+  desc "Build debug version"
+  lane :build_debug do
+    build_app(
+      workspace: "Runner.xcworkspace",
+      scheme: "Runner",
+      configuration: "Debug",
+      export_method: "development"
+    )
+  end
+
+  desc "Run tests"
+  lane :test do
+    run_tests(
+      workspace: "Runner.xcworkspace",
+      scheme: "Runner",
+      devices: ["iPhone 14 Pro"]
+    )
+  end
+
+  desc "Take screenshots for App Store"
+  lane :screenshots do
+    snapshot(
+      workspace: "Runner.xcworkspace",
+      scheme: "Runner"
+    )
+  end
+
+  # Helper methods
+  private_lane :get_version_from_pubspec do
+    pubspec_path = "../../pubspec.yaml"
+    pubspec = File.read(pubspec_path)
+    version_line = pubspec.match(/^version:\s*(.+)$/)[1]
+    version_line.split('+')[0]
+  end
+end
+
+platform :android do
+  desc "Build and deploy to Google Play (internal testing)"
+  lane :beta do
+    # Get version
+    version = get_version_from_pubspec_android
+
+    # Build AAB
+    sh("cd ../.. && flutter build appbundle --release")
+
+    # Upload to Play Console
+    upload_to_play_store(
+      track: 'internal',
+      aab: '../build/app/outputs/bundle/release/app-release.aab',
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+
+    # Tag release
+    add_git_tag(
+      tag: "marketplace-android-v#{version}"
+    )
+  end
+
+  desc "Build and release to Google Play production"
+  lane :release do
+    version = get_version_from_pubspec_android
+
+    sh("cd ../.. && flutter build appbundle --release")
+
+    upload_to_play_store(
+      track: 'production',
+      aab: '../build/app/outputs/bundle/release/app-release.aab',
+      skip_upload_metadata: false,
+      skip_upload_images: false,
+      skip_upload_screenshots: false
+    )
+
+    add_git_tag(
+      tag: "marketplace-android-release-v#{version}"
+    )
+  end
+
+  desc "Build APK for testing"
+  lane :build_apk do
+    sh("cd ../.. && flutter build apk --release")
+  end
+
+  # Helper methods
+  private_lane :get_version_from_pubspec_android do
+    pubspec_path = "../pubspec.yaml"
+    pubspec = File.read(pubspec_path)
+    version_line = pubspec.match(/^version:\s*(.+)$/)[1]
+    version_line.split('+')[0]
+  end
+end
+
+

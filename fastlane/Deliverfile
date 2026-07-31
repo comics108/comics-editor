@@ -1,0 +1,21 @@
+# App Store Connect metadata for Bhagavad Gita (com.ethnoapp.bgita).
+# Most textual content (description, keywords, category, copyright, review info) lives in
+# fastlane/metadata/ — deliver reads that folder automatically. This file only holds
+# account/run-level settings.
+#
+# App Store Connect API Key (recommended for CI/CD — set via secrets in release.yml, not here):
+# api_key_path("path/to/your/AuthKey_XXXXXXXXXX.p8")
+# api_key_id("XXXXXXXXXX")
+# api_key_issuer_id("xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx")
+
+app_identifier("com.ethnoapp.bgita")
+
+# Overwrite existing metadata on each real run (App Store Connect metadata, not the binary).
+force(true)
+
+# Skip screenshots — none maintained in this repo yet (fastlane/screenshots/ is empty).
+skip_screenshots(true)
+
+# Do not auto-submit for review / auto-release — a human reviews and submits manually for now.
+# submit_for_review(true)
+# automatic_release(true)
