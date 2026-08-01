@@ -10,7 +10,11 @@ import '../widgets/balloon_editor_card.dart';
 import '../widgets/balloon_rail.dart';
 import '../widgets/canvas_view.dart';
 import '../widgets/common.dart';
+import '../widgets/cutting_canvas.dart';
+import '../widgets/cutting_region_rail.dart';
+import '../widgets/cutting_review_card.dart';
 import '../widgets/dialogs.dart';
+import '../widgets/library_browser.dart';
 import '../widgets/properties_panel.dart';
 import '../widgets/scene_panel.dart';
 import '../widgets/timeline.dart';
@@ -68,17 +72,23 @@ class EditorScreen extends StatelessWidget {
                     ),
                     const Divider(height: 1, color: Hs.divider),
                     Expanded(
-                      child: c.mode == EditorMode.lettering
-                          ? switch (ff) {
-                              FormFactor.desktop => const _LetteringDesktopBody(),
-                              FormFactor.tablet => const _LetteringTabletBody(),
-                              FormFactor.phone => const _LetteringPhoneBody(),
-                            }
-                          : switch (ff) {
-                              FormFactor.desktop => const _DesktopBody(),
-                              FormFactor.tablet => const _TabletBody(),
-                              FormFactor.phone => const _PhoneBody(),
-                            },
+                      child: switch (c.mode) {
+                        EditorMode.lettering => switch (ff) {
+                            FormFactor.desktop => const _LetteringDesktopBody(),
+                            FormFactor.tablet => const _LetteringTabletBody(),
+                            FormFactor.phone => const _LetteringPhoneBody(),
+                          },
+                        // vdd-comics-editor-ai-uiux: Cutting is desktop-only (the mode switch is
+                        // disabled on iOS/Android, per top_bar.dart's _CuttingModeIcon), so one
+                        // layout covers it regardless of `ff` -- this mode can't be reached from
+                        // a mobile build in the first place.
+                        EditorMode.cutting => const _CuttingDesktopBody(),
+                        EditorMode.edit => switch (ff) {
+                            FormFactor.desktop => const _DesktopBody(),
+                            FormFactor.tablet => const _TabletBody(),
+                            FormFactor.phone => const _PhoneBody(),
+                          },
+                      },
                     ),
                   ],
                 ),
@@ -350,6 +360,129 @@ class _LetteringPhoneBody extends StatelessWidget {
         }
         return BalloonRail(c, registry: registry, langCode: c.lang.name);
       },
+    );
+  }
+}
+
+// ---------------- cutting mode ----------------
+
+/// vdd-comics-editor-ai-uiux, Task 6.1: three-pane Cutting mode layout -- region rail/Library tab
+/// | canvas | review card, mirroring `_LetteringDesktopBody`'s three-pane shape
+/// (rail | canvas | editor) per `02-visual.md`'s macOS results screen. Desktop-only (see the
+/// mode-dispatch switch above).
+class _CuttingDesktopBody extends StatefulWidget {
+  const _CuttingDesktopBody();
+  @override
+  State<_CuttingDesktopBody> createState() => _CuttingDesktopBodyState();
+}
+
+class _CuttingDesktopBodyState extends State<_CuttingDesktopBody> {
+  bool _libraryTab = false;
+  int? _selectedRegion;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = EditorScope.of(context);
+    final session = c.cuttingSession;
+    final hasSelectedRegion =
+        _selectedRegion != null && session != null && _selectedRegion! < session.regions.length;
+
+    return Padding(
+      padding: const EdgeInsets.all(10),
+      child: Row(children: [
+        SizedBox(
+          width: 300,
+          child: PanelCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(children: [
+                  Expanded(
+                    child: _CuttingTabButton(
+                      label: 'Regions${session != null ? ' · ${session.regions.length}' : ''}',
+                      selected: !_libraryTab,
+                      onTap: () => setState(() => _libraryTab = false),
+                    ),
+                  ),
+                  Expanded(
+                    child: _CuttingTabButton(
+                      label: 'Library',
+                      selected: _libraryTab,
+                      onTap: () => setState(() => _libraryTab = true),
+                    ),
+                  ),
+                ]),
+                const Divider(height: 1, color: Hs.divider),
+                Expanded(
+                  child: _libraryTab
+                      ? LibraryBrowser(controller: c)
+                      : CuttingRegionRail(
+                          controller: c,
+                          selectedIndex: _selectedRegion,
+                          onSelect: (i) => setState(() => _selectedRegion = i),
+                        ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: CuttingCanvas(
+            controller: c,
+            selectedRegionIndex: _selectedRegion,
+            onSelectRegion: (i) => setState(() => _selectedRegion = i),
+          ),
+        ),
+        if (hasSelectedRegion) ...[
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 360,
+            child: SingleChildScrollView(
+              child: CuttingReviewCard(
+                controller: c,
+                regionIndex: _selectedRegion!,
+                onOpenInLettering: () {
+                  // The just-accepted region is always the last layer (acceptRegion appends) --
+                  // select it so Lettering mode lands on the balloon the reviewer just created,
+                  // not whatever was selected before switching into Cutting mode.
+                  c.selectLayer(c.doc!.layers.length - 1);
+                  c.setMode(EditorMode.lettering);
+                },
+              ),
+            ),
+          ),
+        ],
+      ]),
+    );
+  }
+}
+
+class _CuttingTabButton extends StatelessWidget {
+  const _CuttingTabButton({required this.label, required this.selected, required this.onTap});
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(color: selected ? Hs.blue500 : Colors.transparent, width: 2),
+          ),
+        ),
+        child: Text(label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: selected ? Hs.blue600 : Hs.textSecondary,
+            )),
+      ),
     );
   }
 }

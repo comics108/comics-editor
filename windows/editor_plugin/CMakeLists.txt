@@ -37,24 +37,38 @@ target_link_libraries(${PLUGIN_NAME} PRIVATE flutter flutter_wrapper_plugin)
 # CMakeLists.txt со ссылкой именно на баг Visual Studio generator'а с
 # экранированием команд без VERBATIM (flutter/flutter#67270) — то есть Flutter
 # сам уже наступал на этот класс бага и официально задокументировал VERBATIM
-# как фикс. Эта миграция трогает только flutter-managed файлы, не наш —
-# добавляем VERBATIM здесь вручную. Раунды 1-4 (CRLF/call/echo-диагностика/
-# сравнение сгенерированного <Command> построчно с рабочим custom-build-step)
-# сравнивали УЖЕ СГЕНЕРИРОВАННЫЙ XML и не могли увидеть разницу в его источнике —
-# отсутствие VERBATIM меняет то, КАК generator экранирует COMMAND при генерации,
-# не то, как выглядит результат при поверхностном сравнении. Не проверено
-# реальным Windows CI (агент работает на macOS, `flutter build windows`
-# недоступен локально) — история этого бага (sdd-comics-editor-build/
-# 04-implementation-log.md) содержит 4 предыдущих раунда, каждый раз
-# уверенно объяснённых, но не подтверждённых реальным прогоном.
+# как фикс. Round 5 применён (2026-07-30), но MSB1008 повторился на первом же
+# реальном прогоне БЕЗ каких-либо диагностических echo из publish_csharp.cmd в
+# логе — т.е. падение происходит ДО того, как наша команда вообще начинает
+# выполняться, ещё на этапе обработки самого custom-build-step MSBuild'ом.
+#
+# Round 6 (2026-07-31): пересмотрен сам механизм, а не содержимое команды.
+# `add_custom_target(... ALL ...)` заставляет CMake сгенерировать ОТДЕЛЬНЫЙ
+# .vcxproj для editor_plugin_csharp, чьи единственные "исходники" — служебный
+# .rule-файл (нет ни одного реального ClCompile-элемента). На раннере
+# windows-2025-vs2026 (VS "18"/2026 — совсем новый/preview тулсет) именно
+# такие "пустые" custom-target-only vcxproj давали сбой ещё до исполнения
+# команды — судя по всему, баг в обработке MSBuild'ом этого класса проектов на
+# этом тулсете, а не в содержимом COMMAND (5 раундов фиксов содержимого не
+# помогли). Переведено на add_custom_command(TARGET ... POST_BUILD ...),
+# прикреплённый к УЖЕ существующему editor_plugin (обычная статическая
+# библиотека с реальными исходниками, свой vcxproj заведомо собирается) —
+# отдельный vcxproj для публикации C#-слоя больше не создаётся вообще, вместо
+# починки бага мы обходим сам класс проекта, в котором он проявляется.
+# windows/runner/CMakeLists.txt копирует ${CMAKE_BINARY_DIR}/dotnet рядом с
+# exe отдельным POST_BUILD-шагом на ${BINARY_NAME} — порядок сохраняется, т.к.
+# runner собирается после editor_plugin (target_link_libraries), а значит и
+# после его POST_BUILD публикации. Не проверено реальным Windows CI (агент
+# работает на macOS) — история багов (sdd-comics-editor-build/
+# 04-implementation-log.md) содержит 5 предыдущих раундов на содержимом
+# команды, ни один не подтверждён реальным прогоном.
 find_program(DOTNET_EXECUTABLE dotnet)
 if(DOTNET_EXECUTABLE)
-  add_custom_target(${PLUGIN_NAME}_csharp ALL
+  add_custom_command(TARGET ${PLUGIN_NAME} POST_BUILD
     COMMAND cmd /c call "${CMAKE_CURRENT_SOURCE_DIR}/publish_csharp.cmd" "${CMAKE_BINARY_DIR}/dotnet"
     COMMENT "Publishing Comics.Editor.Flutter (net10.0-windows)…"
     VERBATIM
   )
-  add_dependencies(${PLUGIN_NAME} ${PLUGIN_NAME}_csharp)
 else()
   message(WARNING ".NET SDK (dotnet) not found — C# layer will not be built.")
 endif()

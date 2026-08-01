@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../../app_version.dart';
@@ -116,7 +118,13 @@ class TopBar extends StatelessWidget {
             const SizedBox(width: 14),
             HsSegmented<EditorMode>(
               values: kEditorModes,
-              labelOf: (m) => m.label,
+              // vdd-comics-editor-ai-uiux: "Cut" here, not the canonical EditorMode.cutting.label
+              // ("Cutting", used elsewhere e.g. tooltips) -- adding a 3rd segment pushed this Row
+              // into a real overflow (6.8px at 1568px width, breaking pre-existing tests) that
+              // the file's own earlier comment already flagged as a tight fit even at 2 segments.
+              // A shorter label recovers well more than the needed margin without touching
+              // HsSegmented's shared padding (also used by the Lang picker) or other Row spacing.
+              labelOf: (m) => m == EditorMode.cutting ? 'Cut' : m.label,
               selected: c.mode,
               height: ff.controlH,
               onChanged: c.setMode,
@@ -136,6 +144,8 @@ class TopBar extends StatelessWidget {
               tooltip: c.mode == EditorMode.edit ? 'Lettering mode' : 'Edit mode',
               onTap: c.toggleMode,
             ),
+            const SizedBox(width: 8),
+            _CuttingModeIcon(size: ff.iconBtn),
             const SizedBox(width: 8),
           ],
           // actions
@@ -243,6 +253,49 @@ class TopBar extends StatelessWidget {
       backgroundColor: Hs.gray800,
       content: Text(message),
     ));
+  }
+}
+
+/// vdd-comics-editor-ai-uiux, Task 6.2: compact/touch row's Cutting entry point. Real desktop
+/// (even at a narrow/compact window width -- `FormFactor` is about screen width, not capability;
+/// `Platform.isIOS||isAndroid` is the actual desktop/mobile split, matching
+/// `createComicsCore()`'s own check in `comics_core.dart`) switches into Cutting mode normally.
+/// On iOS/Android, tapping shows an explanation instead of entering a broken mode -- per
+/// Requirements Acceptance Criterion 5 ("clearly communicates... not a silent no-op").
+///
+/// Simplification, disclosed: `02-visual.md`'s high-fidelity reference shows a full 3-way
+/// segmented switch with a grayed third option on iPad (popover on tap) / an inline note on
+/// iPhone. The real compact/touch row here uses a single binary icon toggle for Edit/Lettering,
+/// not a segmented control -- a documented space constraint at tablet width (see the comment on
+/// `compact` above). This adds one more icon rather than reshaping the row into a 3-way segmented
+/// control; both tablet and phone get the same SnackBar explanation on tap rather than a
+/// popover-vs-inline-note visual distinction.
+class _CuttingModeIcon extends StatelessWidget {
+  const _CuttingModeIcon({required this.size});
+  final double size;
+
+  bool get _isMobile => Platform.isIOS || Platform.isAndroid;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = EditorScope.of(context);
+    return HsIconButton(
+      Icons.content_cut,
+      size: size,
+      filled: c.mode == EditorMode.cutting,
+      tooltip: _isMobile ? 'Cutting (desktop only)' : 'Cutting mode',
+      onTap: () {
+        if (_isMobile) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            behavior: SnackBarBehavior.floating,
+            content: Text("Cutting requires the desktop app for now — the AI pipeline doesn't "
+                'run on this device yet. Regions cut on your Mac appear here as normal layers.'),
+          ));
+        } else {
+          c.setMode(EditorMode.cutting);
+        }
+      },
+    );
   }
 }
 

@@ -3,11 +3,11 @@
 # workflow_dispatch. Локально: `cd macos && bundle exec fastlane macos deploy`
 # (нужны те же переменные окружения, что использует CI — см. release.yml).
 #
-# Код-сайнинг — через fastlane match (readonly), тот же приватный репозиторий
-# сертификатов, что уже используется ios/fastlane/Fastfile (см.
-# https://docs.fastlane.tools/actions/match/) — тот же Apple Developer team,
-# но своя, отдельная от iOS запись сертификата/профиля внутри этого репозитория
-# (platform: "macos" ниже, а не "ios").
+# Код-сайнинг — БЕЗ match (sdd-comics-editor-publish, 2026-07-31, по решению пользователя,
+# тот же переход что и в ios/fastlane/Fastfile): сертификаты + provisioning profile идут напрямую
+# через секреты GitHub. Mac App Store отличается от iOS тем, что нужны ДВЕ отдельные identity —
+# "3rd Party Mac Developer Application" для подписи самого .app и "3rd Party Mac Developer
+# Installer" для подписи .pkg — обе создаются и экспортируются отдельно в Apple Developer Portal.
 #
 # Bundle id: net.nativemind.comics.editor (macos/Runner/Configs/AppInfo.xcconfig,
 # macos/fastlane/Appfile) — тот же, что у iOS/Android, новый identifier не заводился.
@@ -60,14 +60,20 @@
 #      net.nativemind.comics.editor — это ОТДЕЛЬНАЯ запись от iOS-приложения
 #      с тем же bundle id (App Store Connect различает платформы), сделать
 #      руками, API это не создаёт.
-#   2. Один раз выполнить `fastlane match appstore --platform macos` локально
-#      (нужен доступ к Apple Developer аккаунту) — создаст macOS app- И
-#      installer-сертификаты/профиль в уже существующем match-репозитории,
-#      рядом с iOS-записью.
-#   3. Секреты — те же, что уже настроены для release-ios (см.
-#      ios/fastlane/Fastfile): ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_CONTENT,
-#      MATCH_GIT_URL, MATCH_PASSWORD, APPLE_TEAM_ID, ASC_TEAM_ID. Новых секретов
-#      не требуется — тот же team, тот же match-репозиторий.
+#   2. В Apple Developer Portal создать ОБЕ identity — "Mac App Distribution"
+#      (для .app) и "Mac Installer Distribution" (для .pkg) — экспортировать каждую
+#      как отдельный .p12 из Keychain Access (можно с разными или одним паролем),
+#      закодировать в base64 каждый: `base64 -i cert.p12 | pbcopy`.
+#   3. Создать Mac App Store provisioning profile под net.nativemind.comics.editor,
+#      скачать .provisionprofile, закодировать в base64.
+#   4. Секреты в GitHub (отдельные от ios/fastlane — разные certs/profile, тот же
+#      Apple Developer team/ASC-ключ можно переиспользовать):
+#        ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_CONTENT — тот же ключ, что у release-ios
+#        MACOS_CERT_APP_P12_BASE64, MACOS_CERT_APP_PASSWORD             — из шага 2 (app cert)
+#        MACOS_CERT_INSTALLER_P12_BASE64, MACOS_CERT_INSTALLER_PASSWORD — из шага 2 (installer cert)
+#        MACOS_PROVISIONING_PROFILE_BASE64                              — из шага 3
+#        SIGNING_KEYCHAIN_PASSWORD — тот же, что у release-ios, можно переиспользовать значение
+#        APPLE_TEAM_ID, ASC_TEAM_ID — те же, что у release-ios
 #
 # Скриншоты: fastlane/screenshots/<locale>/*.png, 5 локалей (ru, en-US, zh-Hans,
 # hi, th) — копии design/store/pc-01-1440x900.png (валидный размер для Mac App
@@ -93,14 +99,29 @@ platform :macos do
       is_key_content_base64: true
     )
 
-    # Устанавливает app- и installer-сертификаты/профили в keychain (не трогает
-    # code signing settings в Xcode-проекте — сборка ниже идёт через
-    # `flutter build macos`, не через xcodebuild с автоматическим match-injection).
-    match(
-      type: "appstore",
-      platform: "macos",
-      readonly: true,
-      api_key: api_key
+    keychain_password = ENV["SIGNING_KEYCHAIN_PASSWORD"]
+    UI.user_error!("SIGNING_KEYCHAIN_PASSWORD is not set") if keychain_password.nil? || keychain_password.empty?
+
+    create_keychain(
+      name: "macos_signing.keychain",
+      password: keychain_password,
+      default_keychain: false,
+      unlock: true,
+      timeout: 3600,
+      lock_when_sleeps: false
+    )
+
+    import_certificate(
+      certificate_path: "macos_app.p12",
+      certificate_password: ENV["MACOS_CERT_APP_PASSWORD"],
+      keychain_name: "macos_signing.keychain",
+      keychain_password: keychain_password
+    )
+    import_certificate(
+      certificate_path: "macos_installer.p12",
+      certificate_password: ENV["MACOS_CERT_INSTALLER_PASSWORD"],
+      keychain_name: "macos_signing.keychain",
+      keychain_password: keychain_password
     )
 
     # Шаг 1 — тот же вызов, что build.yml's build-macos job уже использует.
@@ -114,7 +135,7 @@ platform :macos do
 
     # Шаг 2 — публикация + встраивание headless-ядра, та же логика что
     # tool/build_headless.sh (см. этот скрипт), но без его ad-hoc-подписи —
-    # шаг 3 ниже подписывает по-настоящему.
+    # финальная подпись (шаг 4) подписывает по-настоящему.
     sh("cd .. && dotnet publish " \
        "native/Comics.Editor.Headless/Comics.Editor.Headless.csproj " \
        "-c Release -r osx-arm64 --self-contained true " \
@@ -124,27 +145,33 @@ platform :macos do
     sh("mkdir -p #{core_dir.shellescape}")
     sh("cp ../native/Comics.Editor.Headless/publish/osx-arm64/Comics.Editor #{core_dir.shellescape}/")
 
-    # Шаг 3 — реальная подпись всего .app (включая только что встроенное ядро)
-    # той identity, которую match только что установил. Ищем по стабильному
+    # Шаг 3 — встраивание provisioning profile'я. Mac App Store требует его внутри
+    # бандла (Contents/embedded.provisionprofile), так же как iOS требует его в .ipa —
+    # это не зависело от match/no-match, но раньше явно не делалось (найдено и
+    # исправлено при переходе с match, sdd-comics-editor-publish 2026-07-31).
+    sh("cp macos_appstore.provisionprofile #{File.join(app_path, 'Contents/embedded.provisionprofile').shellescape}")
+
+    # Шаг 4 — реальная подпись всего .app (включая только что встроенное ядро и
+    # profile) только что импортированной identity. Ищем по стабильному
     # Apple-префиксу, а не по team name (не хардкодим конкретное имя компании).
     app_identity = sh("security find-identity -v -p codesigning | " \
       "grep '3rd Party Mac Developer Application' | head -1 | " \
       "awk -F'\"' '{print $2}'", log: false).strip
     UI.user_error!("No '3rd Party Mac Developer Application' identity found in keychain " \
-      "-- did `match appstore --platform macos` run?") if app_identity.empty?
+      "-- did MACOS_CERT_APP_P12_BASE64 import correctly?") if app_identity.empty?
     sh("codesign --force --deep --sign #{app_identity.shellescape} #{app_path.shellescape}")
 
-    # Шаг 4 — .pkg для App Store Connect, отдельной installer-identity.
+    # Шаг 5 — .pkg для App Store Connect, отдельной installer-identity.
     installer_identity = sh("security find-identity -v -p basic | " \
       "grep '3rd Party Mac Developer Installer' | head -1 | " \
       "awk -F'\"' '{print $2}'", log: false).strip
     UI.user_error!("No '3rd Party Mac Developer Installer' identity found in keychain " \
-      "-- did `match appstore --platform macos` run?") if installer_identity.empty?
+      "-- did MACOS_CERT_INSTALLER_P12_BASE64 import correctly?") if installer_identity.empty?
     pkg_path = File.join(File.dirname(app_path), "comics_editor.pkg")
     sh("productbuild --component #{app_path.shellescape} /Applications " \
        "--sign #{installer_identity.shellescape} #{pkg_path.shellescape}")
 
-    # Шаг 5.
+    # Шаг 6.
     upload_to_app_store(
       api_key: api_key,
       pkg: pkg_path,

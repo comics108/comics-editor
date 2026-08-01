@@ -11,12 +11,17 @@ enum DocType { comics, puzzle }
 /// persisted -- like `EditorController.lang`, this lives entirely on the
 /// controller). `edit` is today's existing workspace; `lettering` swaps the
 /// left+right panes for the balloon rail + balloon editor (Phase 5).
-enum EditorMode { edit, lettering }
+/// vdd-comics-editor-ai-uiux: `cutting` is the third mode, added alongside `edit`/`lettering`.
+/// Functional on desktop only (03-specifications.md/`02-visual.md`) -- the mode switch itself is
+/// disabled on mobile (`top_bar.dart`), so `EditorController.mode` should never actually become
+/// `cutting` there, but the enum value isn't platform-gated at this layer.
+enum EditorMode { edit, lettering, cutting }
 
 extension EditorModeLabel on EditorMode {
   String get label => switch (this) {
         EditorMode.edit => 'Edit',
         EditorMode.lettering => 'Lettering',
+        EditorMode.cutting => 'Cutting',
       };
 }
 

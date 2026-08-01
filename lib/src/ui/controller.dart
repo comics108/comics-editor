@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -6,7 +7,14 @@ import 'package:flutter/material.dart';
 
 // v2.9 обвязка: ядро (процесс на десктопе / NativeAOT+FFI на мобильных).
 import '../ai/balloon_ai_client.dart';
+// Aliased: balloon_ai_client.dart and cutting_client.dart both define RoutingDecided/Progress/
+// Success/Failure as distinct sealed-event types for their respective clients -- same names by
+// deliberate design symmetry (03-specifications.md mirrors BalloonAiClient's shape), so only one
+// of the two can be imported unqualified here.
+import '../ai/cutting_client.dart' as cutting;
+import '../ai/multimodal_paths.dart';
 import '../ai/stub_balloon_ai_client.dart';
+import '../ai/stub_cutting_client.dart';
 import '../bridge/comics_core.dart';
 import '../bridge/documents.dart';
 import '../bridge/models_mapping.dart';
@@ -17,6 +25,65 @@ import 'models.dart';
 
 /// Which element type is selected in the right-hand Properties pane.
 enum SelKind { none, layer, sound }
+
+/// vdd-comics-editor-ai-uiux, Task 3.1: one region's review state within a [CuttingSession].
+/// Never serialized -- once accepted, a region *becomes* an ordinary [EditorLayer]
+/// (03-specifications.md's Data Models: "no schema changes"), indistinguishable from any other.
+enum RegionStatus { pending, accepted, rejected }
+
+class PendingRegion {
+  PendingRegion({required this.region, this.status = RegionStatus.pending});
+  cutting.DetectedRegion region;
+  RegionStatus status;
+}
+
+/// vdd-comics-editor-ai-uiux, Task 3.1: transient Cutting-mode state -- the in-progress or
+/// completed result of one `triggerCutting` call. Holds the source image bytes/layer plus every
+/// proposed region's live review state. Never part of `ComicsDoc`/`data.json`.
+class CuttingSession {
+  CuttingSession({
+    required this.sourceImageBytes,
+    required this.sourceLayerIndex,
+    this.sourceFileRef = '',
+    this.sourceWidth = 0,
+    this.sourceHeight = 0,
+  });
+
+  final Uint8List sourceImageBytes;
+  final int sourceLayerIndex;
+
+  /// vdd-comics-editor-ai-uiux: a fingerprint of the source layer's artwork -- its tile-template
+  /// filename and tracked pixel dimensions (`imageDimensions`, an in-memory raw JSON read, not a
+  /// disk stitch). [EditorController.refreshCuttingStaleness] compares this against the layer's
+  /// *current* state to detect the "source image changed after regions were generated" edge case
+  /// from Requirements. A disclosed simplification: this catches the layer being
+  /// replaced/removed/resized, not a same-size in-place pixel change to the same tile filename --
+  /// full byte-for-byte comparison would need a disk re-stitch on every check, which this trades
+  /// off against for a cheap, in-memory-only check.
+  ///
+  /// Not `final`: [EditorController.dismissCuttingStale] re-baselines these to the layer's
+  /// *current* state when the corrector dismisses the warning, so the very next staleness check
+  /// doesn't immediately re-flag the same already-acknowledged change.
+  String sourceFileRef;
+  int sourceWidth;
+  int sourceHeight;
+  bool stale = false;
+
+  bool onDevice = true;
+  String? routingReason;
+  String? stage; // "loading_model" | "segmenting" | "extracting_regions", null once terminal
+  List<PendingRegion> regions = [];
+  String? failureReason;
+  bool failureRetryable = false;
+
+  /// Set true on a terminal Success or Failure event. Not inferred from `regions.isEmpty`, since
+  /// a real Success with zero detected regions is a valid (if unusual) outcome, not "still
+  /// running" -- an earlier draft of this class got that inference wrong.
+  bool completed = false;
+
+  bool get isRunning => !completed;
+  bool get hasFailed => failureReason != null;
+}
 
 /// Single source of truth. Every mutation calls notifyListeners();
 /// widgets rebuild through EditorScope / ListenableBuilder.
@@ -163,6 +230,22 @@ class EditorController extends ChangeNotifier {
   /// concrete instance to render, and swapping in a real implementation
   /// later is just replacing this one field, not touching UI code.
   final BalloonAiClient aiClient = StubBalloonAiClient();
+
+  /// vdd-comics-editor-ai-uiux: client for the multimodal cutting/segmentation pipeline
+  /// (Cutting mode). Stub-backed on platforms/tests that don't spawn the real subprocess;
+  /// desktop UI wiring replaces this with a real `ProcessCuttingClient` (Task 6.1).
+  cutting.MultimodalCuttingClient cuttingClient = StubCuttingClient();
+
+  /// vdd-comics-editor-ai-uiux, Task 3.1: current Cutting-mode session, if any. Null when Cutting
+  /// mode has never been triggered (or was reset) for the open document.
+  CuttingSession? cuttingSession;
+  StreamSubscription<cutting.CuttingEvent>? _cuttingSubscription;
+
+  /// Overridable for tests, so `insertIntoLibrary` doesn't write into the real, shared
+  /// `apps/comics-ai/comics-multimodal/work/library/` directory during a test run -- same
+  /// testability seam as `ProcessCuttingClient`'s resolver overrides (Task 2.4), needed because
+  /// `Platform.environment` can't be mutated from within a running Dart process either.
+  String? Function() resolveLibraryDir = MultimodalPaths.resolveLibraryDir;
 
   /// Открывает .comics/.puzzle через Comics.Editor.Headless.
   Future<bool> openPath(String path) async {
@@ -621,6 +704,235 @@ class EditorController extends ChangeNotifier {
     final bytes = result?.files.single.bytes;
     if (bytes == null) return false;
     await setImagePopup(langCode, bytes);
+    return true;
+  }
+
+  // ---------- cutting (vdd-comics-editor-ai-uiux) ----------
+
+  /// vdd-comics-editor-ai-uiux, Task 3.1: starts a new [CuttingSession] against
+  /// [sourceImageBytes] (the staged source image/layer at [sourceLayerIndex]), cancelling any
+  /// in-flight session first. Local state only -- no RPC, per 03-specifications.md Finding 1.
+  void triggerCutting(Uint8List sourceImageBytes, int sourceLayerIndex) {
+    unawaited(_cuttingSubscription?.cancel());
+    final document = coreDoc;
+    final sourceLayer = doc != null && sourceLayerIndex < doc!.layers.length
+        ? doc!.layers[sourceLayerIndex]
+        : null;
+    final hasArtwork = sourceLayer != null && sourceLayer.images.isNotEmpty;
+    final dims = document == null ? null : imageDimensions(document, sourceLayerIndex, 0);
+    final session = CuttingSession(
+      sourceImageBytes: sourceImageBytes,
+      sourceLayerIndex: sourceLayerIndex,
+      sourceFileRef: hasArtwork ? sourceLayer.images.first.file : '',
+      sourceWidth: dims?.width ?? 0,
+      sourceHeight: dims?.height ?? 0,
+    );
+    cuttingSession = session;
+    notifyListeners();
+
+    _cuttingSubscription =
+        cuttingClient.segment(sourceImageBytes: sourceImageBytes).listen((event) {
+      // Ignore events from a session that's since been replaced/cancelled (cuttingSession was
+      // reassigned or cleared) -- this closure captured `session`, not the live field.
+      if (!identical(cuttingSession, session)) return;
+      switch (event) {
+        case cutting.RoutingDecided(:final onDevice, :final reason):
+          session.onDevice = onDevice;
+          session.routingReason = reason;
+        case cutting.Progress(:final stage):
+          session.stage = stage;
+        case cutting.Success(:final regions):
+          session.regions = regions.map((r) => PendingRegion(region: r)).toList();
+          session.stage = null;
+          session.completed = true;
+        case cutting.Failure(:final reason, :final retryable):
+          session.failureReason = reason;
+          session.failureRetryable = retryable;
+          session.stage = null;
+          session.completed = true;
+      }
+      notifyListeners();
+    });
+  }
+
+  /// Cancels an in-flight session (kills the subprocess via [ProcessCuttingClient]'s
+  /// `onCancel`) and clears it back to Cutting mode's trigger/empty state -- per `02-visual.md`'s
+  /// Running state Cancel button, no partial regions are kept.
+  void cancelCutting() {
+    unawaited(_cuttingSubscription?.cancel());
+    _cuttingSubscription = null;
+    cuttingSession = null;
+    notifyListeners();
+  }
+
+  /// vdd-comics-editor-ai-uiux: detects the "source image changed after regions were generated"
+  /// edge case (03-specifications.md's Edge Cases table / `02-visual.md`'s stale-output banner).
+  /// Cheap and safe to call from a widget's `build()` -- only reads already-in-memory state
+  /// (`imageDimensions` reads the raw JSON map, no disk I/O), no different from reading any other
+  /// controller field. No-op if there's no session or no open document.
+  void refreshCuttingStaleness() {
+    final session = cuttingSession;
+    final document = coreDoc;
+    if (session == null || document == null) return;
+
+    final layers = doc!.layers;
+    bool isStale;
+    if (session.sourceLayerIndex >= layers.length) {
+      isStale = true; // the source layer itself is gone (deleted, or doc reloaded/undone past it)
+    } else {
+      final layer = layers[session.sourceLayerIndex];
+      final currentFile = layer.images.isEmpty ? '' : layer.images.first.file;
+      final dims = imageDimensions(document, session.sourceLayerIndex, 0);
+      isStale = currentFile != session.sourceFileRef ||
+          dims == null ||
+          dims.width != session.sourceWidth ||
+          dims.height != session.sourceHeight;
+    }
+
+    if (isStale != session.stale) {
+      session.stale = isStale;
+      notifyListeners();
+    }
+  }
+
+  /// Clears the stale flag without re-running -- the banner's Dismiss action (`02-visual.md`):
+  /// the corrector chooses to keep reviewing the existing, disclosed-as-stale regions. Re-baselines
+  /// the session's source fingerprint to the layer's *current* state first -- otherwise the next
+  /// `refreshCuttingStaleness()` call (fired on the very next rebuild, since it runs on every one)
+  /// would immediately compare against the *original* fingerprint again and re-flag the exact same
+  /// already-acknowledged change.
+  void dismissCuttingStale() {
+    final session = cuttingSession;
+    final document = coreDoc;
+    if (session == null || !session.stale) return;
+    if (document != null && session.sourceLayerIndex < doc!.layers.length) {
+      final layer = doc!.layers[session.sourceLayerIndex];
+      session.sourceFileRef = layer.images.isEmpty ? '' : layer.images.first.file;
+      final dims = imageDimensions(document, session.sourceLayerIndex, 0);
+      session.sourceWidth = dims?.width ?? 0;
+      session.sourceHeight = dims?.height ?? 0;
+    }
+    session.stale = false;
+    notifyListeners();
+  }
+
+  /// vdd-comics-editor-ai-uiux, Task 3.3: reassigns a pending region's kind before it's accepted
+  /// (e.g. the reviewer decides a mis-detected background box is actually a balloon). No-op once
+  /// the region has already been accepted or rejected.
+  void reclassifyRegion(int regionIndex, String newKind) {
+    final pending = cuttingSession?.regions[regionIndex];
+    if (pending == null || pending.status != RegionStatus.pending) return;
+    pending.region = pending.region.copyWith(kind: newKind);
+    notifyListeners();
+  }
+
+  /// vdd-comics-editor-ai-uiux, Task 3.3: adjusts a pending region's bounding box (canvas
+  /// resize-handle drag, per `02-visual.md`). No-op once accepted/rejected.
+  void adjustRegionBbox(int regionIndex, Rect newBbox) {
+    final pending = cuttingSession?.regions[regionIndex];
+    if (pending == null || pending.status != RegionStatus.pending) return;
+    pending.region = pending.region.copyWith(bbox: newBbox);
+    notifyListeners();
+  }
+
+  /// vdd-comics-editor-ai-uiux, Task 3.3: marks a region rejected. `CuttingSession`-only mutation
+  /// -- no tile writes, no layer created (03-specifications.md's Data Flow).
+  void rejectRegion(int regionIndex) {
+    final pending = cuttingSession?.regions[regionIndex];
+    if (pending == null || pending.status != RegionStatus.pending) return;
+    pending.status = RegionStatus.rejected;
+    notifyListeners();
+  }
+
+  /// A rejected region can be reconsidered (`02-visual.md`: rejected rows stay visible/clickable)
+  /// -- returns it to pending without needing a re-run.
+  void unrejectRegion(int regionIndex) {
+    final pending = cuttingSession?.regions[regionIndex];
+    if (pending == null || pending.status != RegionStatus.rejected) return;
+    pending.status = RegionStatus.pending;
+    notifyListeners();
+  }
+
+  /// vdd-comics-editor-ai-uiux, Task 3.2: the region-to-layer path. Tile-writes the region's
+  /// [DetectedRegion.cropPng] into the document's `tempFolder/layers/` (identical call shape to
+  /// [setImageFile]'s tile-write, 03-specifications.md's Data Flow), creates a new [EditorLayer]
+  /// with `kind` set from the region, and positions it at `sourceLayer.translate + bbox.topLeft`
+  /// (03-specifications.md Finding 4: no size/scale math needed, only a `TranslateAnim`).
+  ///
+  /// The [EditorLayer] constructor only sets the initial `TranslateAnim.y` (matching today's
+  /// `addLayer()`, whose default offsets are vertical-only) -- `.x` is set explicitly afterward
+  /// here, since a region's horizontal offset within its source image is never zero in general.
+  Future<void> acceptRegion(int regionIndex) async {
+    final session = cuttingSession;
+    final document = coreDoc;
+    final tempFolder = document?.tempFolder;
+    if (session == null || document == null || tempFolder == null) return;
+    final pending = session.regions[regionIndex];
+    if (pending.status != RegionStatus.pending) return;
+    final sourceLayer = doc!.layers[session.sourceLayerIndex];
+
+    final position = sourceLayer.translate + pending.region.bbox.topLeft;
+    final layersDir = '$tempFolder/layers';
+    final stem = sanitizeStem('${pending.region.kind}_region_$regionIndex');
+    final tiled =
+        await writeTiles(bytes: pending.region.cropPng, layersDir: layersDir, name: stem);
+
+    _beginHistory();
+    final newLayer = EditorLayer(tiled.fileTemplate, at: position)..kind = pending.region.kind;
+    newLayer.anims.first.x = position.dx;
+    doc!.layers.add(newLayer);
+    pending.status = RegionStatus.accepted;
+    _commitHistory();
+    notifyListeners();
+  }
+
+  /// vdd-comics-editor-ai-uiux, Task 3.4: writes a region's crop into
+  /// `work/library/<charactersOrEnvironments>/<name>/` -- plain filesystem append, no
+  /// re-clustering/embedding logic (03-specifications.md's disclosed simplification). No-op for
+  /// kinds the library doesn't have a bucket for (only "character"/"background" -- matches
+  /// `build_library.py`'s own `KIND_TO_LIBRARY_DIR`), and if the `comics-multimodal` checkout
+  /// isn't found at all.
+  Future<bool> insertIntoLibrary(int regionIndex, String name) async {
+    final pending = cuttingSession?.regions[regionIndex];
+    if (pending == null) return false;
+    final kindDir = switch (pending.region.kind) {
+      'character' => 'characters',
+      'background' => 'environments',
+      _ => null,
+    };
+    if (kindDir == null) return false;
+    final libraryRoot = resolveLibraryDir();
+    if (libraryRoot == null) return false;
+
+    final targetName = name.trim().isEmpty ? 'unclustered' : name.trim();
+    final dir = Directory('$libraryRoot/$kindDir/$targetName');
+    await dir.create(recursive: true);
+    final fileName = 'r${regionIndex}_${DateTime.now().microsecondsSinceEpoch}.png';
+    await File('${dir.path}/$fileName').writeAsBytes(pending.region.cropPng);
+    return true;
+  }
+
+  /// vdd-comics-editor-ai-uiux, Task 5.2: inserts an already-clustered library item (character/
+  /// environment crop from `work/library/`) as a new layer -- same tile-write + `EditorLayer`
+  /// creation path as [acceptRegion], but with no bbox context (nothing was just cut here), so
+  /// position uses [addLayer]'s own incremental-offset convention instead of a source-relative
+  /// translate.
+  Future<bool> insertLibraryItemAsLayer(Uint8List bytes, String kind) async {
+    final document = coreDoc;
+    final tempFolder = document?.tempFolder;
+    if (document == null || tempFolder == null) return false;
+    final d = doc!;
+
+    final layersDir = '$tempFolder/layers';
+    final stem = sanitizeStem('${kind}_library_${DateTime.now().microsecondsSinceEpoch}');
+    final tiled = await writeTiles(bytes: bytes, layersDir: layersDir, name: stem);
+
+    _beginHistory();
+    final newLayer = EditorLayer(tiled.fileTemplate, at: Offset(40, 60.0 + d.layers.length * 30))
+      ..kind = kind;
+    d.layers.add(newLayer);
+    _commitHistory();
+    notifyListeners();
     return true;
   }
 
