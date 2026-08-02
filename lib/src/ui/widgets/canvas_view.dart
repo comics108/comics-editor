@@ -1,5 +1,8 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
+import '../anim/keyframe_interpolator.dart';
 import '../controller.dart';
 import '../theme.dart';
 import 'common.dart';
@@ -38,17 +41,34 @@ class _Stage extends StatelessWidget {
     return Container(
       color: Hs.surfaceCloud,
       child: LayoutBuilder(builder: (context, box) {
-        // Fit the page into the viewport, then apply puzzle zoom.
         final maxH = box.maxHeight - 40;
         final maxW = box.maxWidth - 40;
-        double pageH = maxH, pageW = pageH * aspect;
-        if (pageW > maxW) {
+        double pageW, pageH;
+        if (c.isPuzzle) {
+          // Puzzle boards are bounded, not a tall scrolling strip -- keep the
+          // existing fit-whole-board-then-zoom-slider behavior unchanged.
+          pageH = maxH;
+          pageW = pageH * aspect;
+          if (pageW > maxW) {
+            pageW = maxW;
+            pageH = pageW / aspect;
+          }
+          pageW *= doc.scale;
+          pageH *= doc.scale;
+        } else {
+          // vdd-comics-editor-vertical-scroll, Task 3.1: fit-width, real
+          // proportional height -- for a real (much taller than wide)
+          // document this makes pageH far exceed the viewport, which is the
+          // point: InteractiveViewer's existing pan now has real vertical
+          // distance to scroll through, one responsive-sized "screenful" at
+          // a time, matching legacy's ScrollViewer scrolling through a
+          // full-height Grid (see 01-requirements.md, Major Finding point
+          // 2) -- responsive per Anton's decision, not v2.8's hardcoded
+          // ratio=1.4. Previously this fit the WHOLE document into maxH,
+          // shrinking it to be fully visible at once (Requirements Gap 2).
           pageW = maxW;
           pageH = pageW / aspect;
         }
-        final scale = c.isPuzzle ? doc.scale : 1.0;
-        pageW *= scale;
-        pageH *= scale;
         return InteractiveViewer(
           key: c.viewportKey,
           transformationController: c.canvasViewport,
@@ -56,6 +76,16 @@ class _Stage extends StatelessWidget {
           maxScale: EditorController.kCanvasZoomMax,
           boundaryMargin: const EdgeInsets.all(200),
           trackpadScrollCausesScale: false,
+          // vdd-comics-editor-vertical-scroll, Task 3.2: `constrained` (default
+          // true) forces the child to size itself to the viewport, silently
+          // clamping panning to boundaryMargin regardless of the child's real
+          // size -- documented explicitly in InteractiveViewer's own source as
+          // wrong for "a child bigger than the viewport that can be panned to
+          // reveal parts that were initially offscreen," exactly our case since
+          // Task 3.1. The child is already explicitly sized via SizedBox below
+          // for both branches above, satisfying `constrained: false`'s
+          // requirement that "the child is sized properly."
+          constrained: false,
           child: Center(
             child: SizedBox(
               width: pageW,
@@ -136,26 +166,57 @@ class _LayerItem extends StatelessWidget {
       ]),
     );
 
-    final left = l.translate.dx * k;
-    final top = l.translate.dy * k;
+    // vdd-comics-editor-vertical-scroll, Task 2.4: interpolated transform,
+    // ported from legacy/comics-editor-v2.8's Anim.cs (see
+    // KeyframeInterpolator). Wrapped in an AnimatedBuilder listening to
+    // c.canvasViewport specifically -- panning updates that TransformationController
+    // directly, not EditorController itself, so this widget wouldn't otherwise
+    // rebuild as currentTime changes (EditorScope only rebuilds on
+    // EditorController.notifyListeners()).
+    return AnimatedBuilder(
+      animation: c.canvasViewport,
+      builder: (context, _) {
+        final t = c.currentTime;
+        final translate = KeyframeInterpolator.translateAt(l.anims, t, l.translate);
+        final (scaleX, scaleY, sPivotX, sPivotY) = KeyframeInterpolator.scaleAt(l.anims, t);
+        final (angle, rPivotX, rPivotY) = KeyframeInterpolator.rotateAt(l.anims, t);
+        final alpha = KeyframeInterpolator.alphaAt(l.anims, t);
 
-    return Positioned(
-      left: left,
-      top: top,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => c.selectLayer(i),
-        onPanStart: (_) {
-          c.selectLayer(i);
-          c.beginGestureHistory();
-        },
-        onPanUpdate: (d) {
-          final vz = c.canvasViewport.value.getMaxScaleOnAxis();
-          c.dragSelected(Offset(d.delta.dx / (k * vz), d.delta.dy / (k * vz)));
-        },
-        onPanEnd: (_) => c.commitGestureHistory(),
-        child: selected ? _WithHandles(child: swatch) : swatch,
-      ),
+        // Composition order matches legacy's LayersControl.xaml: rotate is
+        // the outer transform (pivot = Rotate.Pivot), scale is applied
+        // inside it (pivot = Scale.Pivot) -- Angle is in degrees, as in WPF.
+        Widget transformed = Transform.scale(
+          scaleX: scaleX,
+          scaleY: scaleY,
+          alignment: Alignment(sPivotX * 2 - 1, sPivotY * 2 - 1),
+          child: swatch,
+        );
+        transformed = Transform.rotate(
+          angle: angle * math.pi / 180,
+          alignment: Alignment(rPivotX * 2 - 1, rPivotY * 2 - 1),
+          child: transformed,
+        );
+        transformed = Opacity(opacity: alpha.clamp(0.0, 1.0), child: transformed);
+
+        return Positioned(
+          left: translate.dx * k,
+          top: translate.dy * k,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => c.selectLayer(i),
+            onPanStart: (_) {
+              c.selectLayer(i);
+              c.beginGestureHistory();
+            },
+            onPanUpdate: (d) {
+              final vz = c.canvasViewport.value.getMaxScaleOnAxis();
+              c.dragSelected(Offset(d.delta.dx / (k * vz), d.delta.dy / (k * vz)));
+            },
+            onPanEnd: (_) => c.commitGestureHistory(),
+            child: selected ? _WithHandles(child: transformed) : transformed,
+          ),
+        );
+      },
     );
   }
 }

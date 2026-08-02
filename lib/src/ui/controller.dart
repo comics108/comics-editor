@@ -20,6 +20,7 @@ import '../bridge/documents.dart';
 import '../bridge/models_mapping.dart';
 import '../i18n/language_registry.dart';
 import '../io/tile_writer.dart';
+import 'audio/sound_player.dart';
 import 'edit_history.dart';
 import 'models.dart';
 
@@ -88,6 +89,12 @@ class CuttingSession {
 /// Single source of truth. Every mutation calls notifyListeners();
 /// widgets rebuild through EditorScope / ListenableBuilder.
 class EditorController extends ChangeNotifier {
+  EditorController() {
+    // vdd-comics-editor-vertical-scroll, Task 4.3: drives sound gating on
+    // every pan-driven currentTime change, mirroring ComicsViewModel.Scroll.
+    canvasViewport.addListener(_onSoundTick);
+  }
+
   ComicsDoc? doc;
   Lang lang = Lang.en;
   bool muted = false;
@@ -112,6 +119,58 @@ class EditorController extends ChangeNotifier {
   /// Lets sibling widgets (e.g. the +/- zoom buttons) find the
   /// InteractiveViewer's RenderBox to compute a focal point for zoomBy().
   final GlobalKey viewportKey = GlobalKey();
+
+  /// vdd-comics-editor-vertical-scroll: the single source of truth for
+  /// keyframe "time" -- derived from [canvasViewport]'s pan position, in
+  /// real document pixels, matching legacy's `ScrollViewer.VerticalOffset`
+  /// (see 03-specifications.md's Data Flow). Deliberately does NOT replace
+  /// [playhead] -- `timeline.dart` keeps reading/driving `playhead` exactly
+  /// as before (an explicit, disclosed decision: Anton asked to leave
+  /// `timeline.dart` untouched for now, and separately confirmed that new
+  /// keyframes authored via `addAnim`/`addSound` should stamp real
+  /// `currentTime` values, accepting that `timeline.dart`'s own 0..600
+  /// frame-scaled rendering will show those newly-authored bars off-scale
+  /// until it gets its own redesign later). `playhead` is therefore now
+  /// fully vestigial for anything except that widget's own display.
+  ///
+  /// First-pass formula (flagged in 03-specifications.md's Open Design
+  /// Questions as needing empirical zoom-invariance verification, refined in
+  /// Plan Task 3.3 once the real fit-width canvas layout lands): divides out
+  /// [canvasViewport]'s own zoom so the value is proportional to real
+  /// document pixels regardless of zoom level. Sign convention: panning
+  /// down (revealing lower content) moves content up on screen, i.e. the
+  /// transform's Y translation becomes more negative -- negating it here
+  /// makes `currentTime` increase as you scroll further down, matching
+  /// legacy's `Scroll` increasing with `VerticalOffset`.
+  double get currentTime {
+    final zoom = canvasViewport.value.getMaxScaleOnAxis();
+    if (zoom == 0) return 0;
+    final ty = canvasViewport.value.getTranslation().y;
+    return -ty / zoom;
+  }
+
+  // ---------- sound playback (Task 4.3) ----------
+  // Mirrors ComicsViewModel.Scroll's per-tick `sound.Scroll()` call
+  // (native/Comics.Editor/ViewModel/ComicsViewModel.cs:169-170) -- one
+  // SoundPlayer per EditorSound, evaluated every time currentTime changes.
+  final Map<EditorSound, SoundPlayer> _soundPlayers = {};
+  double _prevSoundTime = 0;
+
+  void _onSoundTick() {
+    final t = currentTime;
+    final tempFolder = coreDoc?.tempFolder;
+    final sounds = doc?.sounds;
+    if (tempFolder != null && sounds != null) {
+      for (final s in sounds) {
+        // FileManager.FolderSounds = "sounds" (legacy/comics-editor-v2.8/
+        // Comics.Editor/Utils/FileManager.cs:18) -- same tempFolder/<kind>/
+        // shape as images' tempFolder/layers/.
+        final player = _soundPlayers.putIfAbsent(s, () => SoundPlayer('$tempFolder/sounds/${s.file}'));
+        player.evaluate(s.anims, _prevSoundTime, t);
+      }
+    }
+    _prevSoundTime = t;
+  }
 
   void resetViewport() {
     canvasViewport.value = Matrix4.identity();
@@ -348,6 +407,10 @@ class EditorController extends ChangeNotifier {
 
   @override
   void dispose() {
+    canvasViewport.removeListener(_onSoundTick);
+    for (final player in _soundPlayers.values) {
+      player.dispose();
+    }
     canvasViewport.dispose();
     core.dispose();
     super.dispose();
@@ -939,8 +1002,9 @@ class EditorController extends ChangeNotifier {
   // ---------- sounds ----------
   void addSound() {
     _beginHistory();
+    final start = currentTime.round();
     doc!.sounds.add(EditorSound('sound_${doc!.sounds.length + 1}.mp3')
-      ..anims.add(Anim(AnimType.sound, start: playhead, end: playhead + 200)));
+      ..anims.add(Anim(AnimType.sound, start: start, end: start + 200)));
     _commitHistory();
     selectSound(doc!.sounds.length - 1);
   }
@@ -964,7 +1028,7 @@ class EditorController extends ChangeNotifier {
     final l = selectedLayer;
     final s = selectedSound;
     if (l == null && s == null) return;
-    final start = playhead;
+    final start = currentTime.round();
     _beginHistory();
     if (l != null) {
       l.anims.add(Anim(type, start: start, end: start + 200));

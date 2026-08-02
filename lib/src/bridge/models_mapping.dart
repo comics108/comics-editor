@@ -65,7 +65,7 @@ int _asInt(dynamic value, [int fallback = 0]) =>
 Anim _animFromJson(Map<String, dynamic> json, {AnimType fallback = AnimType.translate}) {
   final type = _animTypeFromDollarType(json[r'$type'] as String?) ?? fallback;
   final anim = Anim(type,
-      start: _asInt(json['start']), end: _asInt(json['end'], 200));
+      start: _asInt(json['start']), end: _asInt(json['end']));
   anim.x = _asDouble(json['x']);
   anim.y = _asDouble(json['y']);
   anim.angle = _asDouble(json['angle']);
@@ -99,16 +99,17 @@ Map<String, dynamic> _animToJson(Anim anim) {
   // exactly, so `.index` is the right wire value with no lookup table.
   put('type', anim.type.index);
   put('start', anim.start);
-  // vdd-comics-editor-uiux-lettering, Task 7.1: found via the real-dataset
-  // backward-compat pass -- `end` defaults to 200 (Anim's own field default,
-  // and what _animFromJson parses an absent 'end' back as), not 0 like every
-  // other untouched `put()` call here implicitly assumes. Omitting the
-  // explicit default meant *every* re-save wrote a spurious `end: 200` onto
-  // any animation that never had one, silently drifting real user data on
-  // every open->save cycle -- pre-existing, unrelated to this flow's own
-  // fields, but a genuine backward-compatibility bug this task's own
-  // verification exists to catch.
-  put('end', anim.end, 200);
+  // vdd-comics-editor-vertical-scroll, Task 1.1: `end` genuinely defaults to
+  // 0 on the C# side (Newtonsoft's DefaultValueHandling.Ignore compares
+  // against default(int)=0, same as `start`) -- Layer.Create's seed
+  // TranslateAnim is exactly this case (Start=End=0, only Y set). An earlier
+  // version of this code used a 200 fallback here (matching a since-removed
+  // 200 default on _animFromJson's read side, put in place for an unrelated
+  // reason -- see git history), which round-tripped consistently but meant
+  // every legacy-authored resting keyframe was silently misread as a 200px
+  // slide-in the moment interpolation started being evaluated. Both sides
+  // must keep matching (now 0/0) or re-saves would drift real user data.
+  put('end', anim.end);
   switch (anim.type) {
     case AnimType.translate:
       put('x', anim.x.round());

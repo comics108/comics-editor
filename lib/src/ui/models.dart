@@ -55,7 +55,13 @@ extension AnimTypeLabel on AnimType {
 /// One keyframed animation. Every anim shares Start/End (frames along the
 /// scroll/timeline); type-specific fields carry the rest.
 class Anim {
-  Anim(this.type, {this.start = 0, this.end = 200});
+  // vdd-comics-editor-vertical-scroll, Task 1.1: matches legacy's C# int
+  // default (0) for both fields -- see models_mapping.dart's _animFromJson/
+  // _animToJson for why this must stay in sync with the JSON round-trip
+  // defaults. Callers that author a real keyframe range (addAnim/addSound)
+  // always pass an explicit `end`, so this default only matters for
+  // EditorLayer's auto-seeded resting anim.
+  Anim(this.type, {this.start = 0, this.end = 0});
   AnimType type;
   int start;
   int end;

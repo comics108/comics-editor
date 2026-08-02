@@ -135,4 +135,35 @@ void main() {
     expect(copy.kind, 'caption');
     expect(copy.translations, {'en': 'Changed', 'fr': 'Bonjour'});
   });
+
+  // vdd-comics-editor-vertical-scroll, Task 1.1: legacy's Newtonsoft
+  // serializer omits `end` whenever its true value is C#'s int default (0) --
+  // exactly Layer.Create's seed TranslateAnim shape (Start=End=0, only Y
+  // set). An absent `end` must round-trip as 0, not the historical 200
+  // fallback (which was only ever correct for animations authored via
+  // Anim.Add<T>'s Start+200 convention, which always writes `end` explicitly
+  // and would never hit this fallback).
+  test('animation with no end key parses as end=0 and stays keyless on save', () {
+    final raw = _rawDoc([
+      {
+        'images': [
+          {'file': 'bg.png'}
+        ],
+        'animations': [
+          {'y': 1234}, // no $type (defaults to translate), no start, no end
+        ],
+      },
+    ]);
+
+    final document = comicsFromCore(raw, '/tmp/doc.comics');
+    final anim = document.doc.layers.single.anims.single;
+    expect(anim.start, 0);
+    expect(anim.end, 0);
+    expect(anim.y, 1234);
+
+    final mergedLayers = comicsToCore(document)['layers'] as List;
+    final mergedAnims = (mergedLayers.single as Map<String, dynamic>)['animations'] as List;
+    final mergedAnim = mergedAnims.single as Map<String, dynamic>;
+    expect(mergedAnim.containsKey('end'), isFalse);
+  });
 }
