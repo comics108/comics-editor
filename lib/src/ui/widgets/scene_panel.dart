@@ -177,7 +177,7 @@ class _LayerRow extends StatelessWidget {
 /// not a schema change; any value not recognized here still falls back to
 /// the neutral `[Art]` chip.
 class KindChip extends StatelessWidget {
-  const KindChip(this.kind);
+  const KindChip(this.kind, {super.key});
   final String? kind;
 
   /// vdd-comics-editor-ai-uiux: the label/color/icon mapping, exposed as a static so Cutting

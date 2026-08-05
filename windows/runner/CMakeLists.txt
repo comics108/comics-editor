@@ -41,17 +41,7 @@ target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 # Run the Flutter tool portions of the build. This must not be removed.
 add_dependencies(${BINARY_NAME} flutter_assemble)
 
-# sdd-comics-editor-v2.9-fixes2 (Track A): editor_plugin's custom target
-# publishes Comics.Editor.Flutter (net10.0-windows, hostfxr-hosted) into
-# ${CMAKE_BINARY_DIR}/dotnet — a build-tree location, a sibling of this
-# runner/ directory, NOT inside the packaged app output
-# (build/windows/x64/runner/Release/, what build.yml's upload-artifact takes
-# and what a real install would ship). Without this copy, hostfxr_bootstrap.cpp
-# (ExeDirectory() + "\dotnet\...") would never find the published DLL/
-# runtimeconfig.json next to the actual comics_editor.exe.
-add_custom_command(TARGET ${BINARY_NAME} POST_BUILD
-  COMMAND ${CMAKE_COMMAND} -E copy_directory
-    "${CMAKE_BINARY_DIR}/dotnet"
-    "$<TARGET_FILE_DIR:${BINARY_NAME}>/dotnet"
-  COMMENT "Copying Comics.Editor.Flutter (dotnet hosting payload) next to ${BINARY_NAME}"
-)
+# The Windows CI workflow publishes the hostfxr payload directly into this
+# target's packaged Release/dotnet directory after Flutter finishes building.
+# Keeping publication/copying out of CMake avoids VS 2026 MSBuild's MSB1008
+# failure on custom build commands.
