@@ -33,8 +33,26 @@ namespace Comics.Editor.Controls
 			InitializeComponent();
 		}
 
+		/// <summary>Normalized review position used by the Flutter Viewer rail.</summary>
+		public double NormalizedPosition
+		{
+			get
+			{
+				var extent = scrollViewer.ScrollableHeight;
+				return extent <= 0 ? 0 : Math.Max(0, Math.Min(1, scrollViewer.VerticalOffset / extent));
+			}
+		}
+
+		public void SetNormalizedPosition(double value)
+		{
+			value = Math.Max(0, Math.Min(1, value));
+			scrollViewer.ScrollToVerticalOffset(scrollViewer.ScrollableHeight * value);
+		}
+
 		private void UserControl_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
 		{
+			if (e.OldValue is ComicsViewModel oldModel)
+				oldModel.PropertyChanged -= Model_PropertyChanged;
 			if (Model == null)
 				return;
 

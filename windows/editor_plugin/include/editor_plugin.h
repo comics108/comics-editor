@@ -9,6 +9,8 @@
 #ifndef COMICS_EDITOR_PLUGIN_H_
 #define COMICS_EDITOR_PLUGIN_H_
 
+#include <windows.h>
+
 #include <flutter/method_channel.h>
 #include <flutter/plugin_registrar_windows.h>
 
@@ -32,13 +34,14 @@ class EditorPlugin : public flutter::Plugin {
  public:
   static void RegisterWithRegistrar(flutter::PluginRegistrarWindows* registrar);
 
-  EditorPlugin();
+  explicit EditorPlugin(HWND parent_window);
   virtual ~EditorPlugin();
 
   EditorPlugin(const EditorPlugin&) = delete;
   EditorPlugin& operator=(const EditorPlugin&) = delete;
 
  private:
+  HWND parent_window_;
   void HandleMethodCall(
       const flutter::MethodCall<flutter::EncodableValue>& method_call,
       std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);

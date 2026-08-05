@@ -7,6 +7,7 @@
 #include <flutter/standard_method_codec.h>
 
 #include <memory>
+#include <sstream>
 #include <string>
 
 #include "hostfxr_bootstrap.h"
@@ -48,6 +49,70 @@ bool IsErrorResult(const std::wstring& json) {
   return json.compare(0, prefix.size(), prefix) == 0;
 }
 
+std::string EscapeJson(const std::string& value) {
+  std::ostringstream stream;
+  for (const char character : value) {
+    switch (character) {
+      case '\\': stream << "\\\\"; break;
+      case '"': stream << "\\\""; break;
+      case '\n': stream << "\\n"; break;
+      case '\r': stream << "\\r"; break;
+      case '\t': stream << "\\t"; break;
+      default: stream << character; break;
+    }
+  }
+  return stream.str();
+}
+
+std::string ValueToJson(const flutter::EncodableValue& value) {
+  if (std::holds_alternative<std::monostate>(value)) return "null";
+  if (const auto* boolean = std::get_if<bool>(&value))
+    return *boolean ? "true" : "false";
+  if (const auto* integer = std::get_if<int32_t>(&value))
+    return std::to_string(*integer);
+  if (const auto* integer = std::get_if<int64_t>(&value))
+    return std::to_string(*integer);
+  if (const auto* number = std::get_if<double>(&value)) {
+    std::ostringstream stream;
+    stream.precision(17);
+    stream << *number;
+    return stream.str();
+  }
+  if (const auto* string = std::get_if<std::string>(&value))
+    return "\"" + EscapeJson(*string) + "\"";
+  if (const auto* map = std::get_if<flutter::EncodableMap>(&value)) {
+    std::ostringstream stream;
+    stream << "{";
+    bool first = true;
+    for (const auto& entry : *map) {
+      const auto* key = std::get_if<std::string>(&entry.first);
+      if (key == nullptr) continue;
+      if (!first) stream << ",";
+      first = false;
+      stream << "\"" << EscapeJson(*key) << "\":" << ValueToJson(entry.second);
+    }
+    stream << "}";
+    return stream.str();
+  }
+  return "null";
+}
+
+std::string ArgumentsToJson(const flutter::EncodableValue* arguments,
+                            HWND parent_window,
+                            bool inject_parent) {
+  flutter::EncodableMap map;
+  if (arguments != nullptr) {
+    if (const auto* input = std::get_if<flutter::EncodableMap>(arguments))
+      map = *input;
+  }
+  if (inject_parent) {
+    map[flutter::EncodableValue("parentHwnd")] =
+        flutter::EncodableValue(static_cast<int64_t>(
+            reinterpret_cast<intptr_t>(parent_window)));
+  }
+  return ValueToJson(flutter::EncodableValue(map));
+}
+
 }  // namespace
 
 void EditorPlugin::RegisterWithRegistrar(
@@ -57,7 +122,8 @@ void EditorPlugin::RegisterWithRegistrar(
           registrar->messenger(), "comics_editor",
           &flutter::StandardMethodCodec::GetInstance());
 
-  auto plugin = std::make_unique<EditorPlugin>();
+  auto plugin = std::make_unique<EditorPlugin>(
+      registrar->GetView()->GetNativeWindow());
 
   channel->SetMethodCallHandler(
       [plugin_pointer = plugin.get()](const auto& call, auto result) {
@@ -67,7 +133,7 @@ void EditorPlugin::RegisterWithRegistrar(
   registrar->AddPlugin(std::move(plugin));
 }
 
-EditorPlugin::EditorPlugin() {}
+EditorPlugin::EditorPlugin(HWND parent_window) : parent_window_(parent_window) {}
 
 EditorPlugin::~EditorPlugin() {}
 
@@ -80,14 +146,11 @@ void EditorPlugin::HandleMethodCall(
     return;
   }
 
-  // sdd-comics-editor-v2.9-fixes2 (Track A): the only two methods the Dart
-  // side currently calls (see lib/src/bridge/wpf_editor_view.dart) are
-  // "create"/"dispose", both invoked with no arguments — so a full
-  // EncodableValue -> JSON serializer for method_call.arguments() isn't
-  // implemented here (see 02-specifications.md, Won't Have). Once a real
-  // caller needs to pass arguments, this is the place to add it.
   std::wstring method = Utf8ToWide(method_call.method_name());
-  std::wstring json = CallHandleMethodCall(method, nullptr);
+  const std::string arguments_json = ArgumentsToJson(
+      method_call.arguments(), parent_window_, method_call.method_name() == "create");
+  const std::wstring wide_arguments = Utf8ToWide(arguments_json);
+  std::wstring json = CallHandleMethodCall(method, &wide_arguments);
 
   if (IsErrorResult(json)) {
     result->Error("comics_editor_flutter_error", WideToUtf8(json));

@@ -54,20 +54,23 @@ class _BrandGlyphPainter extends CustomPainter {
       ..strokeWidth = 15
       ..strokeCap = StrokeCap.round;
     canvas.drawPath(
-        Path()
-          ..moveTo(162, 166)
-          ..relativeQuadraticBezierTo(3, 16, -1, 28),
-        stroke);
+      Path()
+        ..moveTo(162, 166)
+        ..relativeQuadraticBezierTo(3, 16, -1, 28),
+      stroke,
+    );
     canvas.drawPath(
-        Path()
-          ..moveTo(236, 164)
-          ..relativeQuadraticBezierTo(5, 15, 1, 29),
-        stroke);
+      Path()
+        ..moveTo(236, 164)
+        ..relativeQuadraticBezierTo(5, 15, 1, 29),
+      stroke,
+    );
     canvas.drawPath(
-        Path()
-          ..moveTo(142, 230)
-          ..relativeQuadraticBezierTo(52, 52, 116, -7),
-        stroke);
+      Path()
+        ..moveTo(142, 230)
+        ..relativeQuadraticBezierTo(52, 52, 116, -7),
+      stroke,
+    );
   }
 
   @override
@@ -89,7 +92,7 @@ class TopBar extends StatelessWidget {
     // flow's iPad-first direction), and the compact branch already has a
     // real Edit/Lettering toggle (icon button) and language picker, not
     // just a phone-specific stub.
-    final compact = ff.isTouch;
+    final compact = ff.isTouch || MediaQuery.sizeOf(context).width < 1500;
 
     return Container(
       height: compact ? 56 : 60,
@@ -100,18 +103,25 @@ class TopBar extends StatelessWidget {
           BrandMark(size: compact ? 30 : 34),
           const SizedBox(width: 10),
           if (!compact) ...[
-            const Text('Comics Editor',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w500)),
+            const Text(
+              'Comics Editor',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w500),
+            ),
             const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                  color: Hs.blue100, borderRadius: BorderRadius.circular(20)),
-              child: Text(AppVersion.current,
-                  style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: Hs.blue500)),
+                color: Hs.blue100,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                AppVersion.current,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: Hs.blue500,
+                ),
+              ),
             ),
             const SizedBox(width: 14),
             _DocPill(name: c.doc!.name),
@@ -131,17 +141,25 @@ class TopBar extends StatelessWidget {
             ),
           ] else
             Expanded(
-              child: Text(c.doc!.name,
-                  style:
-                      const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                  overflow: TextOverflow.ellipsis),
+              child: Text(
+                c.doc!.name,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           if (!compact) const Spacer(),
           if (compact) ...[
             HsIconButton(
-              c.mode == EditorMode.edit ? Icons.chat_bubble_outline : Icons.edit_outlined,
+              c.mode == EditorMode.edit
+                  ? Icons.chat_bubble_outline
+                  : Icons.edit_outlined,
               size: ff.iconBtn,
-              tooltip: c.mode == EditorMode.edit ? 'Lettering mode' : 'Edit mode',
+              tooltip: c.mode == EditorMode.edit
+                  ? 'Lettering mode'
+                  : 'Edit mode',
               onTap: c.toggleMode,
             ),
             const SizedBox(width: 8),
@@ -149,37 +167,57 @@ class TopBar extends StatelessWidget {
             const SizedBox(width: 8),
           ],
           // actions
-          HsIconButton(Icons.add, size: ff.iconBtn, onTap: () => showNewDialog(context)),
+          HsIconButton(
+            Icons.add,
+            size: ff.iconBtn,
+            onTap: () => showNewDialog(context),
+          ),
           const SizedBox(width: 8),
-          HsIconButton(Icons.folder_open_outlined,
-              size: ff.iconBtn, onTap: () => showOpenDialog(context)),
+          HsIconButton(
+            Icons.folder_open_outlined,
+            size: ff.iconBtn,
+            onTap: () => showOpenDialog(context),
+          ),
           const SizedBox(width: 8),
           if (!compact)
-            HsButton('Save',
-                icon: Icons.file_download_outlined,
-                variant: HsVariant.save,
-                height: ff.controlH,
-                onTap: () => _saved(context))
+            HsButton(
+              'Save',
+              icon: Icons.file_download_outlined,
+              variant: HsVariant.save,
+              height: ff.controlH,
+              onTap: () => _saved(context),
+            )
           else
-            HsIconButton(Icons.file_download_outlined,
-                size: ff.iconBtn, tooltip: 'Save', onTap: () => _saved(context)),
+            HsIconButton(
+              Icons.file_download_outlined,
+              size: ff.iconBtn,
+              tooltip: 'Save',
+              onTap: () => _saved(context),
+            ),
           if (!compact) ...[
             // v2.9 обвязка: Export / Save As через системный диалог (file_picker).
             const SizedBox(width: 8),
-            HsIconButton(Icons.ios_share,
-                size: ff.iconBtn, onTap: () => _export(context)),
+            HsIconButton(
+              Icons.ios_share,
+              size: ff.iconBtn,
+              onTap: () => _export(context),
+            ),
             // sdd-comics-editor-v2.9-fixes2: Undo/Redo (Ctrl+Z/Ctrl+Shift+Z также
             // работают — см. Shortcuts/Actions в editor_screen.dart).
             const SizedBox(width: 8),
-            HsIconButton(Icons.undo,
-                size: ff.iconBtn,
-                tooltip: 'Undo',
-                onTap: c.canUndo ? c.undo : null),
+            HsIconButton(
+              Icons.undo,
+              size: ff.iconBtn,
+              tooltip: 'Undo',
+              onTap: c.canUndo ? c.undo : null,
+            ),
             const SizedBox(width: 8),
-            HsIconButton(Icons.redo,
-                size: ff.iconBtn,
-                tooltip: 'Redo',
-                onTap: c.canRedo ? c.redo : null),
+            HsIconButton(
+              Icons.redo,
+              size: ff.iconBtn,
+              tooltip: 'Redo',
+              onTap: c.canRedo ? c.redo : null,
+            ),
             const SizedBox(width: 14),
             const _Divider(),
             const SizedBox(width: 14),
@@ -199,23 +237,36 @@ class TopBar extends StatelessWidget {
             PopupMenuButton<void>(
               tooltip: 'More',
               itemBuilder: (_) => [
-                PopupMenuItem<void>(onTap: () => _export(context), child: const Text('Export')),
                 PopupMenuItem<void>(
-                    enabled: c.canUndo, onTap: c.undo, child: const Text('Undo')),
+                  onTap: () => _export(context),
+                  child: const Text('Export'),
+                ),
                 PopupMenuItem<void>(
-                    enabled: c.canRedo, onTap: c.redo, child: const Text('Redo')),
+                  enabled: c.canUndo,
+                  onTap: c.undo,
+                  child: const Text('Undo'),
+                ),
+                PopupMenuItem<void>(
+                  enabled: c.canRedo,
+                  onTap: c.redo,
+                  child: const Text('Redo'),
+                ),
                 const PopupMenuDivider(),
-                ...kLangs.map((l) => PopupMenuItem<void>(
+                ...kLangs.map(
+                  (l) => PopupMenuItem<void>(
                     onTap: () => c.setLanguage(l),
-                    child: Text('Language: ${l.label}'))),
+                    child: Text('Language: ${l.label}'),
+                  ),
+                ),
               ],
               child: Container(
                 width: 44,
                 height: 44,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                    border: Border.all(color: Hs.cloud200),
-                    borderRadius: BorderRadius.circular(Hs.rBtn)),
+                  border: Border.all(color: Hs.cloud200),
+                  borderRadius: BorderRadius.circular(Hs.rBtn),
+                ),
                 child: const Icon(Icons.more_horiz, color: Hs.primary),
               ),
             ),
@@ -231,11 +282,15 @@ class TopBar extends StatelessWidget {
     if (c.coreDoc == null) return;
     final ok = await c.exportWithDialog();
     if (!context.mounted || !ok && c.coreError == null) return; // отмена — тихо
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      behavior: SnackBarBehavior.floating,
-      backgroundColor: Hs.gray800,
-      content: Text(ok ? 'Exported ${c.doc!.name}' : 'Export failed: ${c.coreError}'),
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Hs.gray800,
+        content: Text(
+          ok ? 'Exported ${c.doc!.name}' : 'Export failed: ${c.coreError}',
+        ),
+      ),
+    );
   }
 
   // v2.9 обвязка: если документ открыт из файла — реальное сохранение через
@@ -248,11 +303,13 @@ class TopBar extends StatelessWidget {
       if (!ok) message = 'Save failed: ${c.coreError ?? 'unknown error'}';
     }
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      behavior: SnackBarBehavior.floating,
-      backgroundColor: Hs.gray800,
-      content: Text(message),
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Hs.gray800,
+        content: Text(message),
+      ),
+    );
   }
 }
 
@@ -286,11 +343,15 @@ class _CuttingModeIcon extends StatelessWidget {
       tooltip: _isMobile ? 'Cutting (desktop only)' : 'Cutting mode',
       onTap: () {
         if (_isMobile) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            behavior: SnackBarBehavior.floating,
-            content: Text("Cutting requires the desktop app for now — the AI pipeline doesn't "
-                'run on this device yet. Regions cut on your Mac appear here as normal layers.'),
-          ));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              behavior: SnackBarBehavior.floating,
+              content: Text(
+                "Cutting requires the desktop app for now — the AI pipeline doesn't "
+                'run on this device yet. Regions cut on your Mac appear here as normal layers.',
+              ),
+            ),
+          );
         } else {
           c.setMode(EditorMode.cutting);
         }
@@ -319,13 +380,16 @@ class _DocPill extends StatelessWidget {
         border: Border.all(color: Hs.cloud200),
         borderRadius: BorderRadius.circular(Hs.rChip),
       ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        const Icon(Icons.image_outlined, size: 16, color: Hs.textSecondary),
-        const SizedBox(width: 8),
-        Text(name, style: const TextStyle(fontSize: 15, color: Hs.textBody)),
-        const SizedBox(width: 6),
-        const Icon(Icons.expand_more, size: 16, color: Hs.textSecondary),
-      ]),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.image_outlined, size: 16, color: Hs.textSecondary),
+          const SizedBox(width: 8),
+          Text(name, style: const TextStyle(fontSize: 15, color: Hs.textBody)),
+          const SizedBox(width: 6),
+          const Icon(Icons.expand_more, size: 16, color: Hs.textSecondary),
+        ],
+      ),
     );
   }
 }

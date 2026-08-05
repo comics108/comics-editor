@@ -22,15 +22,18 @@ void main() {
     expect(registry.languages.length, greaterThan(3));
   });
 
-  test('indexFor/codeFor resolve en/ru/hi to 0/1/2, matching Cultures', () async {
-    final registry = await LanguageRegistry.load();
-    expect(registry.indexFor('en'), 0);
-    expect(registry.indexFor('ru'), 1);
-    expect(registry.indexFor('hi'), 2);
-    expect(registry.codeFor(0), 'en');
-    expect(registry.codeFor(1), 'ru');
-    expect(registry.codeFor(2), 'hi');
-  });
+  test(
+    'indexFor/codeFor resolve en/ru/hi to 0/1/2, matching Cultures',
+    () async {
+      final registry = await LanguageRegistry.load();
+      expect(registry.indexFor('en'), 0);
+      expect(registry.indexFor('ru'), 1);
+      expect(registry.indexFor('hi'), 2);
+      expect(registry.codeFor(0), 'en');
+      expect(registry.codeFor(1), 'ru');
+      expect(registry.codeFor(2), 'hi');
+    },
+  );
 
   test('unknown code/index resolve to null, not a crash', () async {
     final registry = await LanguageRegistry.load();
@@ -61,13 +64,39 @@ void main() {
     expect(registry.codeFor(3), 'xx');
   });
 
-  test('real asset file is valid JSON with a non-trivial language list',
-      () async {
-    final raw = await rootBundle.loadString('assets/languages.json');
-    expect(raw, contains('"languages"'));
+  test(
+    'real asset file is valid JSON with a non-trivial language list',
+    () async {
+      final raw = await rootBundle.loadString('assets/languages.json');
+      expect(raw, contains('"languages"'));
+      final registry = LanguageRegistry.fromJson(raw);
+      // Not asserting an exact count -- that would re-introduce the hardcoded
+      // number this design explicitly avoids. Just that it's plausible.
+      expect(registry.languages.length, greaterThanOrEqualTo(10));
+    },
+  );
+
+  test('inactive languages keep their stable slots', () {
+    const raw = '''
+    {"languages":[
+      {"code":"en","name":"English","nativeName":"English"},
+      {"code":"ru","name":"Russian","nativeName":"Русский"},
+      {"code":"hi","name":"Hindi","nativeName":"हिन्दी"},
+      {"code":"uk","name":"Ukrainian","nativeName":"Українська","active":false}
+    ]}''';
     final registry = LanguageRegistry.fromJson(raw);
-    // Not asserting an exact count -- that would re-introduce the hardcoded
-    // number this design explicitly avoids. Just that it's plausible.
-    expect(registry.languages.length, greaterThanOrEqualTo(10));
+
+    expect(registry.indexFor('uk'), 3);
+    expect(registry.languages[3].active, isFalse);
+  });
+
+  test('rejects shifting the three legacy language slots', () {
+    const raw = '''
+    {"languages":[
+      {"code":"ru","name":"Russian","nativeName":"Русский"},
+      {"code":"en","name":"English","nativeName":"English"},
+      {"code":"hi","name":"Hindi","nativeName":"हिन्दी"}
+    ]}''';
+    expect(() => LanguageRegistry.fromJson(raw), throwsFormatException);
   });
 }

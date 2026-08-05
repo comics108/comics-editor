@@ -14,11 +14,10 @@
 			<key>CFBundleTypeName</key>
 			<string>Comics Document</string>
 			<key>LSHandlerRank</key>
-			<string>Owner</string>
+			<string>Alternate</string>
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>net.nativemind.comics</string>
-				<string>net.nativemind.puzzle</string>
 			</array>
 		</dict>
 	</array>
@@ -99,24 +98,6 @@
 				<key>public.filename-extension</key>
 				<array>
 					<string>comics</string>
-				</array>
-			</dict>
-		</dict>
-		<dict>
-			<key>UTTypeConformsTo</key>
-			<array>
-				<string>public.data</string>
-				<string>public.archive</string>
-			</array>
-			<key>UTTypeDescription</key>
-			<string>Puzzle Document</string>
-			<key>UTTypeIdentifier</key>
-			<string>net.nativemind.puzzle</string>
-			<key>UTTypeTagSpecification</key>
-			<dict>
-				<key>public.filename-extension</key>
-				<array>
-					<string>puzzle</string>
 				</array>
 			</dict>
 		</dict>

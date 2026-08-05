@@ -24,3 +24,9 @@ plugins {
 }
 
 include(":app")
+
+// flutter_comics_viewer depends on this source module. A Flutter host app owns
+// the root Gradle graph, so the plugin's own settings file is not evaluated.
+include(":comics-viewer-android")
+project(":comics-viewer-android").projectDir =
+    file("../../../libs/comics_viewer/comics-viewer-android")

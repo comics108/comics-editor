@@ -24,16 +24,13 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <!-- sdd-comics-editor-v2.9-android-ios: открытие .comics/.puzzle из проводника -->
+            <!-- Comics documents from providers that report the dedicated MIME type. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
-                <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="content"/>
                 <data android:scheme="file"/>
-                <data android:mimeType="*/*"/>
-                <data android:pathPattern=".*\\.comics"/>
-                <data android:pathPattern=".*\\.puzzle"/>
+                <data android:mimeType="application/vnd.nativemind.comics"/>
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.

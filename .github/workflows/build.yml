@@ -41,7 +41,7 @@ jobs:
       # перечислен, чтобы это было видно в CI-выводе, а не только на macOS
       # job'е (см. build-macos: bare `flutter test` там подхватывает этот
       # файл тоже, но он теперь сам umеет skip'аться, не крашится).
-      - run: flutter test test/widget_test.dart test/dart_io_core_test.dart test/dataset_backward_compat_test.dart
+      - run: flutter test test/widget_test.dart test/dart_io_core_test.dart test/dataset_backward_compat_test.dart test/document_open_coordinator_test.dart test/file_association_metadata_test.dart
 
   build-windows:
     name: Windows
@@ -72,7 +72,10 @@ jobs:
         run: call windows\editor_plugin\publish_csharp.cmd build\windows\x64\runner\Release\dotnet
       - name: Test
         shell: bash
-        run: flutter test test/widget_test.dart test/dart_io_core_test.dart test/core_client_test.dart
+        run: flutter test test/widget_test.dart test/dart_io_core_test.dart test/core_client_test.dart test/document_open_coordinator_test.dart test/file_association_metadata_test.dart
+      - name: Validate per-user file association (dry run)
+        shell: pwsh
+        run: windows/packaging/Register-ComicsFileAssociation.ps1 -ExecutablePath "${{ github.workspace }}\build\windows\x64\runner\Release\comics_editor.exe" -WhatIf
       - uses: actions/upload-artifact@v4
         with:
           name: windows-build
@@ -104,6 +107,8 @@ jobs:
         run: tool/build_headless.sh
       # Все 4 test-suite: widget, dart_io_core, core_client (process), ffi_core (AOT-ворота).
       - run: flutter test
+      - name: Test macOS runner queue
+        run: xcodebuild test -workspace macos/Runner.xcworkspace -scheme Runner -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO
       - name: Zip app bundle
         run: |
           cd build/macos/Build/Products/Release
@@ -123,7 +128,7 @@ jobs:
       - name: Install Flutter Linux desktop dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev desktop-file-utils libxml2-utils shared-mime-info
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -139,7 +144,19 @@ jobs:
       - run: flutter build linux --release
       - name: Embed headless core into the built bundle
         run: tool/build_headless.sh
-      - run: flutter test test/widget_test.dart test/dart_io_core_test.dart test/core_client_test.dart
+      - run: flutter test test/widget_test.dart test/dart_io_core_test.dart test/core_client_test.dart test/document_open_coordinator_test.dart test/file_association_metadata_test.dart
+      - name: Validate Linux file association metadata
+        run: |
+          bash -n linux/packaging/install-user.sh linux/packaging/uninstall-user.sh
+          xmllint --noout linux/packaging/net.nativemind.comics.editor.xml
+          desktop-file-validate linux/packaging/net.nativemind.comics.editor.desktop.in
+          test_root="$(mktemp -d)"
+          cp /usr/bin/true "$test_root/Comics Editor"
+          XDG_DATA_HOME="$test_root/data" linux/packaging/install-user.sh "$test_root/Comics Editor"
+          test -f "$test_root/data/applications/net.nativemind.comics.editor.desktop"
+          XDG_DATA_HOME="$test_root/data" linux/packaging/uninstall-user.sh
+          test ! -e "$test_root/data/applications/net.nativemind.comics.editor.desktop"
+          test ! -e "$test_root/data/mime/packages/net.nativemind.comics.editor.xml"
       - uses: actions/upload-artifact@v4
         with:
           name: linux-build
@@ -168,7 +185,9 @@ jobs:
       # или NDK). Open/save реализованы на чистом Dart (DartIoCore), как и на iOS —
       # см. flows/sdd-comics-editor-v2.9-android-ios/04-implementation-log.md.
       - run: flutter build apk --release
-      - run: flutter test test/widget_test.dart test/dart_io_core_test.dart
+      - working-directory: android
+        run: ./gradlew testDebugUnitTest
+      - run: flutter test test/widget_test.dart test/dart_io_core_test.dart test/document_open_coordinator_test.dart test/file_association_metadata_test.dart
       - uses: actions/upload-artifact@v4
         with:
           name: android-build
@@ -190,7 +209,7 @@ jobs:
       # iOS не использует .NET/NativeAOT-ядро: open/save реализованы на чистом Dart
       # (DartIoCore) — см. flows/sdd-comics-editor-v2.9-android-ios/01-requirements.md, Q1.
       - run: flutter build ios --release --no-codesign
-      - run: flutter test test/widget_test.dart test/dart_io_core_test.dart
+      - run: flutter test test/widget_test.dart test/dart_io_core_test.dart test/document_open_coordinator_test.dart test/file_association_metadata_test.dart
       - uses: actions/upload-artifact@v4
         with:
           name: ios-build

@@ -43,11 +43,11 @@ default_linux_cmd='flutter pub get \
   && dotnet build native/Comics.Editor.Headless/Comics.Editor.Headless.csproj -c Release \
   && flutter build linux --release \
   && tool/build_headless.sh \
-  && flutter test test/widget_test.dart test/dart_io_core_test.dart test/core_client_test.dart'
+  && flutter test test/widget_test.dart test/dart_io_core_test.dart test/core_client_test.dart test/document_open_coordinator_test.dart test/file_association_metadata_test.dart'
 
 default_android_cmd='flutter pub get \
   && flutter build apk --release \
-  && flutter test test/widget_test.dart test/dart_io_core_test.dart'
+  && flutter test test/widget_test.dart test/dart_io_core_test.dart test/document_open_coordinator_test.dart test/file_association_metadata_test.dart'
 
 user_flags=()
 if [ -z "${CI:-}" ]; then

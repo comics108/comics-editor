@@ -42,11 +42,11 @@ void main() {
   final datasetAvailable = datasetDir.existsSync();
   final datasetFiles = datasetAvailable
       ? (datasetDir
-              .listSync()
-              .whereType<File>()
-              .where((f) => f.path.endsWith('.comics'))
-              .toList()
-            ..sort((a, b) => a.path.compareTo(b.path)))
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((f) => f.path.endsWith('.comics'))
+            .toList()
+          ..sort((a, b) => a.path.compareTo(b.path)))
       : <File>[];
 
   test(
@@ -63,33 +63,59 @@ void main() {
     final name = file.uri.pathSegments.last;
     test('backward-compat: $name opens cleanly, has no pre-existing kind/style/'
         'translations, and reaches a stable save fixed point', () async {
+      final temporaryDirectories = <Directory>[];
+      Directory temporary(String prefix) {
+        final directory = Directory.systemTemp.createTempSync(prefix);
+        temporaryDirectories.add(directory);
+        return directory;
+      }
+
       Future<Map<String, dynamic>> openRaw(String path, String tag) async {
         final core = DartIoCore(
-            workDirPath: Directory.systemTemp.createTempSync('bwcompat_${tag}_work').path);
-        addTearDown(core.dispose);
-        final opened = await core.call('openComics', {'path': path}) as Map<String, dynamic>;
+          workDirPath: temporary('bwcompat_${tag}_work').path,
+        );
+        final opened =
+            await core.call('openComics', {'path': path})
+                as Map<String, dynamic>;
         return opened;
       }
 
-      Future<String> resave(Map<String, dynamic> opened, String path, String tag) async {
+      Future<String> resave(
+        Map<String, dynamic> opened,
+        String path,
+        String tag,
+      ) async {
         final raw = opened['comics'] as Map<String, dynamic>;
-        final document =
-            comicsFromCore(raw, path, tempFolder: opened['tempFolder'] as String?);
+        final document = comicsFromCore(
+          raw,
+          path,
+          tempFolder: opened['tempFolder'] as String?,
+        );
 
         // No layer in any real dataset file uses the new fields yet.
         for (final layer in document.doc.layers) {
-          expect(layer.kind, isNull, reason: '$name: layer "${layer.name}" has a kind already');
-          expect(layer.style, isNull,
-              reason: '$name: layer "${layer.name}" has a style already');
-          expect(layer.translations, isEmpty,
-              reason: '$name: layer "${layer.name}" has translations already');
+          expect(
+            layer.kind,
+            isNull,
+            reason: '$name: layer "${layer.name}" has a kind already',
+          );
+          expect(
+            layer.style,
+            isNull,
+            reason: '$name: layer "${layer.name}" has a style already',
+          );
+          expect(
+            layer.translations,
+            isEmpty,
+            reason: '$name: layer "${layer.name}" has translations already',
+          );
         }
 
         final saveCore = DartIoCore(
-            workDirPath: Directory.systemTemp.createTempSync('bwcompat_${tag}_savework').path);
-        addTearDown(saveCore.dispose);
+          workDirPath: temporary('bwcompat_${tag}_savework').path,
+        );
         final savedPath =
-            '${Directory.systemTemp.createTempSync('bwcompat_${tag}_saved').path}/roundtrip.comics';
+            '${temporary('bwcompat_${tag}_saved').path}/roundtrip.comics';
         await saveCore.call('saveComics', {
           'path': savedPath,
           'comics': comicsToCore(document),
@@ -97,25 +123,32 @@ void main() {
         return savedPath;
       }
 
-      final opened1 = await openRaw(file.path, 'orig');
-      final savedPath1 = await resave(opened1, file.path, 'save1');
+      try {
+        final opened1 = await openRaw(file.path, 'orig');
+        final savedPath1 = await resave(opened1, file.path, 'save1');
 
-      final opened2 = await openRaw(savedPath1, 'reopen1');
-      final resave1Raw = opened2['comics'] as Map<String, dynamic>;
-      final savedPath2 = await resave(opened2, savedPath1, 'save2');
+        final opened2 = await openRaw(savedPath1, 'reopen1');
+        final resave1Raw = opened2['comics'] as Map<String, dynamic>;
+        final savedPath2 = await resave(opened2, savedPath1, 'save2');
 
-      final opened3 = await openRaw(savedPath2, 'reopen2');
-      final resave2Raw = opened3['comics'] as Map<String, dynamic>;
+        final opened3 = await openRaw(savedPath2, 'reopen2');
+        final resave2Raw = opened3['comics'] as Map<String, dynamic>;
 
-      // jsonDecode/jsonEncode round trip normalizes both sides to plain
-      // Map/List/num/String/bool so `equals()` does a real deep structural
-      // comparison, not an object-identity one.
-      expect(
-        jsonDecode(jsonEncode(resave2Raw)),
-        equals(jsonDecode(jsonEncode(resave1Raw))),
-        reason: '$name: still drifting after the first resave -- '
-            'saving keeps rewriting the file even with zero edits',
-      );
+        // jsonDecode/jsonEncode round trip normalizes both sides to plain
+        // Map/List/num/String/bool so `equals()` does a real deep structural
+        // comparison, not an object-identity one.
+        expect(
+          jsonDecode(jsonEncode(resave2Raw)),
+          equals(jsonDecode(jsonEncode(resave1Raw))),
+          reason:
+              '$name: still drifting after the first resave -- '
+              'saving keeps rewriting the file even with zero edits',
+        );
+      } finally {
+        for (final directory in temporaryDirectories.reversed) {
+          if (directory.existsSync()) directory.deleteSync(recursive: true);
+        }
+      }
     }, timeout: const Timeout(Duration(minutes: 2)));
   }
 }

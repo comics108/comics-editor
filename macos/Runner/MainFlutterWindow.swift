@@ -9,6 +9,9 @@ class MainFlutterWindow: NSWindow {
     self.setFrame(windowFrame, display: true)
 
     RegisterGeneratedPlugins(registry: flutterViewController)
+    DocumentOpenBroker.shared.attach(
+      messenger: flutterViewController.engine.binaryMessenger
+    )
 
     super.awakeFromNib()
   }

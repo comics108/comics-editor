@@ -4,10 +4,16 @@ import 'package:flutter/services.dart' show rootBundle;
 
 /// One entry in the language table: an ISO code plus display names.
 class LanguageInfo {
-  const LanguageInfo({required this.code, required this.name, required this.nativeName});
+  const LanguageInfo({
+    required this.code,
+    required this.name,
+    required this.nativeName,
+    this.active = true,
+  });
   final String code;
   final String name;
   final String nativeName;
+  final bool active;
 }
 
 /// vdd-comics-editor-uiux-lettering: data-driven language list, backing the
@@ -19,7 +25,9 @@ class LanguageInfo {
 /// first and in that order.
 class LanguageRegistry {
   LanguageRegistry._(this.languages)
-      : _indexByCode = {for (var i = 0; i < languages.length; i++) languages[i].code: i};
+    : _indexByCode = {
+        for (var i = 0; i < languages.length; i++) languages[i].code: i,
+      };
 
   final List<LanguageInfo> languages;
   final Map<String, int> _indexByCode;
@@ -36,8 +44,12 @@ class LanguageRegistry {
   /// is what actually matters (avoids re-reading the asset on every widget
   /// rebuild); re-reading a small bundled JSON file once per *document
   /// session* is not a real cost worth this kind of cross-test landmine.
-  static Future<LanguageRegistry> load({String assetPath = 'assets/languages.json'}) async {
-    final jsonString = await rootBundle.loadString(assetPath);
+  static Future<LanguageRegistry> load({
+    String assetPath = 'assets/languages.json',
+  }) async {
+    // Avoid sharing CachingAssetBundle's Future across test/application zones;
+    // EditorController already caches the parsed registry per document session.
+    final jsonString = await rootBundle.loadString(assetPath, cache: false);
     return LanguageRegistry.fromJson(jsonString);
   }
 
@@ -50,8 +62,15 @@ class LanguageRegistry {
           code: (entry as Map<String, dynamic>)['code'] as String,
           name: entry['name'] as String,
           nativeName: entry['nativeName'] as String,
+          active: entry['active'] as bool? ?? true,
         ),
     ];
+    if (languages.length < 3 ||
+        languages[0].code != 'en' ||
+        languages[1].code != 'ru' ||
+        languages[2].code != 'hi') {
+      throw const FormatException('Language slots 0/1/2 must remain en/ru/hi');
+    }
     return LanguageRegistry._(languages);
   }
 
@@ -59,7 +78,8 @@ class LanguageRegistry {
   int? indexFor(String code) => _indexByCode[code];
 
   /// Language code at Images[] slot [index], or null if out of range.
-  String? codeFor(int index) => index >= 0 && index < languages.length ? languages[index].code : null;
+  String? codeFor(int index) =>
+      index >= 0 && index < languages.length ? languages[index].code : null;
 
   bool isKnown(String code) => _indexByCode.containsKey(code);
 }

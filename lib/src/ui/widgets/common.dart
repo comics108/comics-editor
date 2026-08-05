@@ -63,7 +63,9 @@ class _HsButtonState extends State<HsButton> {
           duration: Hs.durFast,
           height: widget.height,
           width: widget.expand ? double.infinity : null,
-          padding: EdgeInsets.symmetric(horizontal: widget.icon != null ? 14 : 18),
+          padding: EdgeInsets.symmetric(
+            horizontal: widget.icon != null ? 14 : 18,
+          ),
           decoration: BoxDecoration(
             color: _hover ? Color.alphaBlend(const Color(0x14000000), bg) : bg,
             border: border,
@@ -77,9 +79,14 @@ class _HsButtonState extends State<HsButton> {
                 Icon(widget.icon, size: 17, color: fg),
                 const SizedBox(width: 8),
               ],
-              Text(widget.label,
-                  style: TextStyle(
-                      fontWeight: FontWeight.w500, fontSize: 14, color: fg)),
+              Text(
+                widget.label,
+                style: TextStyle(
+                  fontWeight: FontWeight.w500,
+                  fontSize: 14,
+                  color: fg,
+                ),
+              ),
             ],
           ),
         ),
@@ -90,8 +97,14 @@ class _HsButtonState extends State<HsButton> {
 
 /// Small square icon button (add / up / down / delete in panels).
 class HsIconButton extends StatelessWidget {
-  const HsIconButton(this.icon,
-      {super.key, this.onTap, this.filled = false, this.size = 30, this.tooltip});
+  const HsIconButton(
+    this.icon, {
+    super.key,
+    this.onTap,
+    this.filled = false,
+    this.size = 30,
+    this.tooltip,
+  });
   final IconData icon;
   final VoidCallback? onTap;
   final bool filled;
@@ -127,6 +140,7 @@ class HsSegmented<T> extends StatelessWidget {
     required this.selected,
     required this.onChanged,
     this.height = 38,
+    this.expand = false,
   });
 
   final List<T> values;
@@ -134,6 +148,7 @@ class HsSegmented<T> extends StatelessWidget {
   final T selected;
   final ValueChanged<T> onChanged;
   final double height;
+  final bool expand;
 
   @override
   Widget build(BuildContext context) {
@@ -148,30 +163,34 @@ class HsSegmented<T> extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           for (var i = 0; i < values.length; i++)
-            GestureDetector(
-              onTap: () => onChanged(values[i]),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 15),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: values[i] == selected ? Hs.blue500 : Hs.white,
-                  border: i == 0
-                      ? null
-                      : const Border(left: BorderSide(color: Hs.cloud200)),
-                ),
-                child: Text(
-                  labelOf(values[i]),
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: values[i] == selected
-                        ? FontWeight.w500
-                        : FontWeight.w400,
-                    color: values[i] == selected ? Hs.white : Hs.textBody,
-                  ),
-                ),
-              ),
-            ),
+            if (expand) Expanded(child: _segment(i)) else _segment(i),
         ],
+      ),
+    );
+  }
+
+  Widget _segment(int i) {
+    return GestureDetector(
+      onTap: () => onChanged(values[i]),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 15),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: values[i] == selected ? Hs.blue500 : Hs.white,
+          border: i == 0
+              ? null
+              : const Border(left: BorderSide(color: Hs.cloud200)),
+        ),
+        child: Text(
+          labelOf(values[i]),
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: values[i] == selected
+                ? FontWeight.w500
+                : FontWeight.w400,
+            color: values[i] == selected ? Hs.white : Hs.textBody,
+          ),
+        ),
       ),
     );
   }
@@ -200,7 +219,10 @@ class HsToggle extends StatelessWidget {
         child: Container(
           width: 18,
           height: 18,
-          decoration: const BoxDecoration(color: Hs.white, shape: BoxShape.circle),
+          decoration: const BoxDecoration(
+            color: Hs.white,
+            shape: BoxShape.circle,
+          ),
         ),
       ),
     );
@@ -228,11 +250,11 @@ class NumberField extends StatefulWidget {
 }
 
 class _NumberFieldState extends State<NumberField> {
-  late final TextEditingController _c =
-      TextEditingController(text: _fmt(widget.value));
+  late final TextEditingController _c = TextEditingController(
+    text: _fmt(widget.value),
+  );
 
-  String _fmt(num v) =>
-      widget.decimals ? v.toString() : v.toInt().toString();
+  String _fmt(num v) => widget.decimals ? v.toString() : v.toInt().toString();
 
   @override
   void didUpdateWidget(NumberField old) {
@@ -254,9 +276,14 @@ class _NumberFieldState extends State<NumberField> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(widget.label,
-            style: const TextStyle(
-                fontSize: 11, color: Hs.textSecondary, height: 1.4)),
+        Text(
+          widget.label,
+          style: const TextStyle(
+            fontSize: 11,
+            color: Hs.textSecondary,
+            height: 1.4,
+          ),
+        ),
         const SizedBox(height: 3),
         Focus(
           onFocusChange: (f) => _focused = f,
@@ -272,11 +299,15 @@ class _NumberFieldState extends State<NumberField> {
             child: TextField(
               controller: _c,
               keyboardType: TextInputType.numberWithOptions(
-                  decimal: widget.decimals, signed: true),
+                decimal: widget.decimals,
+                signed: true,
+              ),
               style: serifValue(),
               cursorColor: Hs.blue500,
               decoration: const InputDecoration(
-                  isCollapsed: true, border: InputBorder.none),
+                isCollapsed: true,
+                border: InputBorder.none,
+              ),
               onChanged: (t) {
                 final v = widget.decimals
                     ? double.tryParse(t)

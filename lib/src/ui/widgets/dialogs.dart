@@ -20,37 +20,100 @@ Future<void> showNewDialog(BuildContext context) async {
     builder: (ctx) => StatefulBuilder(
       builder: (ctx, setState) => _DialogShell(
         title: 'New document',
-        width: 560,
+        width: 760,
         actions: [
-          HsButton('Cancel',
-              variant: HsVariant.cancel, onTap: () => Navigator.pop(ctx)),
+          HsButton(
+            'Cancel',
+            variant: HsVariant.cancel,
+            onTap: () => Navigator.pop(ctx),
+          ),
           const SizedBox(width: 10),
-          HsButton('Create', onTap: () {
-            c.newDoc(choice);
-            Navigator.pop(ctx);
-          }),
+          HsButton(
+            'Create',
+            onTap: () {
+              c.newDoc(choice);
+              Navigator.pop(ctx);
+            },
+          ),
         ],
-        child: Row(children: [
-          Expanded(
-            child: _TypeCard(
-              title: 'Comics',
-              subtitle: 'Scrolling strip with timed layers & sound.',
-              selected: choice == DocType.comics,
-              preview: _stripPreview(),
-              onTap: () => setState(() => choice = DocType.comics),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('DOCUMENT TYPE', style: kSectionLabel),
+            const SizedBox(height: 10),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final cards = <Widget>[
+                  _TypeCard(
+                    title: 'Vertical-scroll comic strip',
+                    subtitle: 'Default · infinite vertical reading flow.',
+                    selected: choice == DocType.comics,
+                    preview: _stripPreview(),
+                    onTap: () => setState(() => choice = DocType.comics),
+                  ),
+                  _TypeCard(
+                    title: 'Horizontal-scroll comic strip',
+                    subtitle: 'Planned for a future version.',
+                    selected: false,
+                    enabled: false,
+                    preview: _stripPreview(),
+                    onTap: () {},
+                  ),
+                  _TypeCard(
+                    title: 'Puzzle',
+                    subtitle: 'Zoomable board of draggable pieces.',
+                    selected: choice == DocType.puzzle,
+                    preview: _boardPreview(),
+                    onTap: () => setState(() => choice = DocType.puzzle),
+                  ),
+                ];
+                if (constraints.maxWidth < 620) {
+                  return Column(
+                    children: [
+                      for (var i = 0; i < cards.length; i++) ...[
+                        cards[i],
+                        if (i != cards.length - 1) const SizedBox(height: 10),
+                      ],
+                    ],
+                  );
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (var i = 0; i < cards.length; i++) ...[
+                      Expanded(child: cards[i]),
+                      if (i != cards.length - 1) const SizedBox(width: 12),
+                    ],
+                  ],
+                );
+              },
             ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: _TypeCard(
-              title: 'Puzzle',
-              subtitle: 'Zoomable board of draggable pieces.',
-              selected: choice == DocType.puzzle,
-              preview: _boardPreview(),
-              onTap: () => setState(() => choice = DocType.puzzle),
+            const SizedBox(height: 18),
+            const Text('DEVICE ORIENTATION', style: kSectionLabel),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _OptionTile(
+                    icon: Icons.stay_current_portrait,
+                    label: 'Portrait',
+                    selected: true,
+                    enabled: true,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: _OptionTile(
+                    icon: Icons.stay_current_landscape,
+                    label: 'Landscape',
+                    selected: false,
+                    enabled: false,
+                  ),
+                ),
+              ],
             ),
-          ),
-        ]),
+          ],
+        ),
       ),
     ),
   );
@@ -67,23 +130,32 @@ Future<void> showOpenDialog(BuildContext context) async {
         width: 480,
         actions: [
           // v2.9 обвязка: Browse… — системный диалог выбора файла (file_picker).
-          HsButton('Browse…', variant: HsVariant.secondary, onTap: () async {
-            Navigator.pop(ctx);
-            final ok = await c.openWithDialog();
-            if (!ok && c.coreError != null && context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                behavior: SnackBarBehavior.floating,
-                content: Text('Open failed: ${c.coreError}'),
-              ));
-            }
-          }),
+          HsButton(
+            'Browse…',
+            variant: HsVariant.secondary,
+            onTap: () async {
+              Navigator.pop(ctx);
+              final ok = await c.openWithDialog();
+              if (!ok && c.coreError != null && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    behavior: SnackBarBehavior.floating,
+                    content: Text('Open failed: ${c.coreError}'),
+                  ),
+                );
+              }
+            },
+          ),
           const Spacer(),
           // v2.9: на мобильных локальный документ открывается тапом по строке.
           if (!_isMobile)
-            HsButton('Open', onTap: () {
-              c.openRecent(EditorController.recents[sel]);
-              Navigator.pop(ctx);
-            }),
+            HsButton(
+              'Open',
+              onTap: () {
+                c.openRecent(EditorController.recents[sel]);
+                Navigator.pop(ctx);
+              },
+            ),
         ],
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -95,12 +167,16 @@ Future<void> showOpenDialog(BuildContext context) async {
                 border: Border.all(color: Hs.cloud200, width: 2),
                 borderRadius: BorderRadius.circular(Hs.rChip),
               ),
-              child: const Row(children: [
-                Icon(Icons.search, size: 16, color: Hs.textSecondary),
-                SizedBox(width: 10),
-                Text('Search…',
-                    style: TextStyle(color: Hs.textTertiary, fontSize: 15)),
-              ]),
+              child: const Row(
+                children: [
+                  Icon(Icons.search, size: 16, color: Hs.textSecondary),
+                  SizedBox(width: 10),
+                  Text(
+                    'Search…',
+                    style: TextStyle(color: Hs.textTertiary, fontSize: 15),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 8),
             // v2.9: на мобильных — реальные документы из песочницы приложения.
@@ -112,28 +188,31 @@ Future<void> showOpenDialog(BuildContext context) async {
                   if (files.isEmpty) {
                     return const Padding(
                       padding: EdgeInsets.symmetric(vertical: 12),
-                      child: Text('No local documents yet — use Browse…',
-                          style:
-                              TextStyle(color: Hs.textSecondary, fontSize: 14)),
+                      child: Text(
+                        'No local documents yet — use Browse…',
+                        style: TextStyle(color: Hs.textSecondary, fontSize: 14),
+                      ),
                     );
                   }
-                  return Column(children: [
-                    for (final f in files)
-                      _RecentRow(
-                        file: RecentFile(
-                          f.path.split('/').last,
-                          f.path.endsWith('.puzzle')
-                              ? DocType.puzzle
-                              : DocType.comics,
-                          'Local document',
+                  return Column(
+                    children: [
+                      for (final f in files)
+                        _RecentRow(
+                          file: RecentFile(
+                            f.path.split('/').last,
+                            f.path.endsWith('.puzzle')
+                                ? DocType.puzzle
+                                : DocType.comics,
+                            'Local document',
+                          ),
+                          selected: false,
+                          onTap: () async {
+                            Navigator.pop(ctx);
+                            await c.openPath(f.path);
+                          },
                         ),
-                        selected: false,
-                        onTap: () async {
-                          Navigator.pop(ctx);
-                          await c.openPath(f.path);
-                        },
-                      ),
-                  ]);
+                    ],
+                  );
                 },
               )
             else
@@ -160,28 +239,41 @@ Future<void> showDuplicateError(BuildContext context) async {
         const Spacer(),
         HsButton('OK', onTap: () => Navigator.pop(ctx)),
       ],
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-          width: 40,
-          height: 40,
-          decoration: const BoxDecoration(
-              color: Hs.coral500, shape: BoxShape.circle),
-          child: const Icon(Icons.close, color: Hs.white, size: 18),
-        ),
-        const SizedBox(width: 16),
-        const Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('File already exists',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-              SizedBox(height: 4),
-              Text('A file with this name already exists. Choose a different name.',
-                  style: TextStyle(fontSize: 14, height: 1.5, color: Hs.textBody)),
-            ],
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: const BoxDecoration(
+              color: Hs.coral500,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.close, color: Hs.white, size: 18),
           ),
-        ),
-      ]),
+          const SizedBox(width: 16),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'File already exists',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'A file with this name already exists. Choose a different name.',
+                  style: TextStyle(
+                    fontSize: 14,
+                    height: 1.5,
+                    color: Hs.textBody,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     ),
   );
 }
@@ -205,7 +297,9 @@ class _DialogShell extends StatelessWidget {
     return Dialog(
       backgroundColor: Hs.white,
       insetPadding: const EdgeInsets.all(24),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Hs.rCard)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(Hs.rCard),
+      ),
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: width),
         child: Column(
@@ -215,17 +309,29 @@ class _DialogShell extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.fromLTRB(20, 18, 12, 18),
                 decoration: const BoxDecoration(
-                    border: Border(bottom: BorderSide(color: Hs.divider))),
-                child: Row(children: [
-                  Expanded(
-                      child: Text(title!,
-                          style: const TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.w500))),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close, size: 18, color: Hs.textSecondary),
-                  ),
-                ]),
+                  border: Border(bottom: BorderSide(color: Hs.divider)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title!,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(
+                        Icons.close,
+                        size: 18,
+                        color: Hs.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             Padding(padding: const EdgeInsets.all(20), child: child),
             Padding(
@@ -246,44 +352,116 @@ class _TypeCard extends StatelessWidget {
     required this.selected,
     required this.preview,
     required this.onTap,
+    this.enabled = true,
   });
   final String title, subtitle;
   final bool selected;
   final Widget preview;
   final VoidCallback onTap;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          border: Border.all(
-              color: selected ? Hs.blue500 : Hs.divider,
-              width: selected ? 2 : 1),
-          borderRadius: BorderRadius.circular(Hs.rCard),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SizedBox(height: 120, child: preview),
-            Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title,
-                      style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w500)),
-                  const SizedBox(height: 2),
-                  Text(subtitle,
-                      style: const TextStyle(
-                          fontSize: 13, color: Hs.textSecondary, height: 1.35)),
-                ],
+    return Semantics(
+      enabled: enabled,
+      selected: selected,
+      button: true,
+      child: GestureDetector(
+        onTap: enabled ? onTap : null,
+        child: Opacity(
+          opacity: enabled ? 1 : .55,
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: selected ? Hs.blue500 : Hs.divider,
+                width: selected ? 2 : 1,
               ),
+              borderRadius: BorderRadius.circular(Hs.rCard),
             ),
-          ],
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Stack(
+                  children: [
+                    SizedBox(height: 100, child: preview),
+                    if (!enabled)
+                      const Positioned(
+                        right: 8,
+                        top: 8,
+                        child: Icon(Icons.lock_outline, color: Hs.white),
+                      ),
+                  ],
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Hs.textSecondary,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OptionTile extends StatelessWidget {
+  const _OptionTile({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.enabled,
+  });
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      enabled: enabled,
+      selected: selected,
+      button: true,
+      child: Opacity(
+        opacity: enabled ? 1 : .5,
+        child: Container(
+          height: 54,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(
+            color: selected ? Hs.blue100 : Hs.white,
+            border: Border.all(color: selected ? Hs.blue500 : Hs.divider),
+            borderRadius: BorderRadius.circular(Hs.rChip),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: selected ? Hs.blue500 : Hs.textSecondary),
+              const SizedBox(width: 10),
+              Expanded(child: Text(label)),
+              if (!enabled) const Icon(Icons.lock_outline, size: 17),
+            ],
+          ),
         ),
       ),
     );
@@ -291,8 +469,11 @@ class _TypeCard extends StatelessWidget {
 }
 
 class _RecentRow extends StatelessWidget {
-  const _RecentRow(
-      {required this.file, required this.selected, required this.onTap});
+  const _RecentRow({
+    required this.file,
+    required this.selected,
+    required this.onTap,
+  });
   final RecentFile file;
   final bool selected;
   final VoidCallback onTap;
@@ -308,36 +489,48 @@ class _RecentRow extends StatelessWidget {
           color: selected ? Hs.blue100 : null,
           borderRadius: BorderRadius.circular(6),
         ),
-        child: Row(children: [
-          Container(
-            width: 30,
-            height: 30,
-            decoration: BoxDecoration(
+        child: Row(
+          children: [
+            Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
                 color: selected ? Hs.blue500 : Hs.cloud200,
-                borderRadius: BorderRadius.circular(5)),
-            child: Icon(puzzle ? Icons.grid_view : Icons.image_outlined,
-                size: 15, color: selected ? Hs.white : Hs.primary),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(file.name, style: const TextStyle(fontSize: 15)),
-                Text(file.meta,
-                    style:
-                        const TextStyle(fontSize: 12, color: Hs.textSecondary)),
-              ],
+                borderRadius: BorderRadius.circular(5),
+              ),
+              child: Icon(
+                puzzle ? Icons.grid_view : Icons.image_outlined,
+                size: 15,
+                color: selected ? Hs.white : Hs.primary,
+              ),
             ),
-          ),
-        ]),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(file.name, style: const TextStyle(fontSize: 15)),
+                  Text(
+                    file.meta,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Hs.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-Widget _stripPreview() => CustomPaint(painter: _StripPainter(), child: const SizedBox.expand());
-Widget _boardPreview() => CustomPaint(painter: _BoardPainter(), child: const SizedBox.expand());
+Widget _stripPreview() =>
+    CustomPaint(painter: _StripPainter(), child: const SizedBox.expand());
+Widget _boardPreview() =>
+    CustomPaint(painter: _BoardPainter(), child: const SizedBox.expand());
 
 class _StripPainter extends CustomPainter {
   @override

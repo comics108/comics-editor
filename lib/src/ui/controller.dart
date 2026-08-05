@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:archive/archive.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_comics_viewer/flutter_comics_viewer.dart' as viewer;
 
 // v2.9 обвязка: ядро (процесс на десктопе / NativeAOT+FFI на мобильных).
 import '../ai/balloon_ai_client.dart';
@@ -21,6 +24,7 @@ import '../bridge/models_mapping.dart';
 import '../i18n/language_registry.dart';
 import '../io/tile_writer.dart';
 import 'audio/sound_player.dart';
+import 'device_profile.dart';
 import 'edit_history.dart';
 import 'models.dart';
 
@@ -72,7 +76,8 @@ class CuttingSession {
 
   bool onDevice = true;
   String? routingReason;
-  String? stage; // "loading_model" | "segmenting" | "extracting_regions", null once terminal
+  String?
+  stage; // "loading_model" | "segmenting" | "extracting_regions", null once terminal
   List<PendingRegion> regions = [];
   String? failureReason;
   bool failureRetryable = false;
@@ -98,6 +103,85 @@ class EditorController extends ChangeNotifier {
   ComicsDoc? doc;
   Lang lang = Lang.en;
   bool muted = false;
+  EditorWorkspace workspace = EditorWorkspace.editor;
+  PropertiesTab propertiesTab = PropertiesTab.selection;
+  DeviceProfile targetDeviceProfile = DeviceProfile.iPad;
+
+  final viewer.ComicsViewerController viewerController =
+      viewer.ComicsViewerController();
+  viewer.ComicsViewerSource? viewerSource;
+  int _previewRevision = 0;
+  Directory? _previewDirectory;
+
+  void setWorkspace(EditorWorkspace value) {
+    if (workspace == value) return;
+    workspace = value;
+    notifyListeners();
+    if (value == EditorWorkspace.viewer) unawaited(refreshViewer());
+  }
+
+  void setPropertiesTab(PropertiesTab value) {
+    if (propertiesTab == value) return;
+    propertiesTab = value;
+    notifyListeners();
+  }
+
+  void setTargetDeviceProfile(DeviceProfile value) {
+    if (identical(targetDeviceProfile, value)) return;
+    targetDeviceProfile = value;
+    notifyListeners();
+  }
+
+  Future<void> refreshViewer() async {
+    final current = doc;
+    if (current == null) return;
+    final revision = ++_previewRevision;
+    try {
+      final document = coreDoc;
+      final json = document != null
+          ? comicsToCore(document)
+          : <String, dynamic>{
+              'width': current.width,
+              'height': current.height,
+              'layers': const <Object>[],
+              'sounds': const <Object>[],
+            };
+      final data = utf8.encode(jsonEncode(json));
+      final archive = Archive()
+        ..addFile(ArchiveFile('data.json', data.length, data));
+      final working = coreDoc?.tempFolder;
+      if (working != null) {
+        final root = Directory(working);
+        if (root.existsSync()) {
+          for (final entity
+              in root.listSync(recursive: true).whereType<File>()) {
+            final relative = entity.path.substring(root.path.length + 1);
+            if (relative == 'data.json') continue;
+            final bytes = await entity.readAsBytes();
+            archive.addFile(ArchiveFile(relative, bytes.length, bytes));
+          }
+        }
+      }
+      if (revision != _previewRevision) return;
+      final encoded = ZipEncoder().encode(archive);
+      final directory = _previewDirectory ??= Directory.systemTemp
+          .createTempSync('comics_editor_viewer_');
+      final target = File('${directory.path}/preview_$revision.comics');
+      final staging = File('${target.path}.tmp');
+      await staging.writeAsBytes(encoded, flush: true);
+      await staging.rename(target.path);
+      if (revision != _previewRevision) return;
+      viewerSource = viewer.ComicsViewerPath(
+        target.path,
+        revisionKey: revision,
+      );
+      await viewerController.load(viewerSource!);
+      notifyListeners();
+    } on Exception catch (error) {
+      coreError = 'Viewer preview failed: $error';
+      notifyListeners();
+    }
+  }
 
   SelKind selKind = SelKind.none;
   int selIndex = -1;
@@ -165,7 +249,10 @@ class EditorController extends ChangeNotifier {
         // FileManager.FolderSounds = "sounds" (legacy/comics-editor-v2.8/
         // Comics.Editor/Utils/FileManager.cs:18) -- same tempFolder/<kind>/
         // shape as images' tempFolder/layers/.
-        final player = _soundPlayers.putIfAbsent(s, () => SoundPlayer('$tempFolder/sounds/${s.file}'));
+        final player = _soundPlayers.putIfAbsent(
+          s,
+          () => SoundPlayer('$tempFolder/sounds/${s.file}'),
+        );
         player.evaluate(s.anims, _prevSoundTime, t);
       }
     }
@@ -246,21 +333,45 @@ class EditorController extends ChangeNotifier {
 
   List<Anim> get selectedAnims =>
       selectedLayer?.anims ?? selectedSound?.anims ?? const [];
-  Anim? get currentAnim =>
-      (selAnim >= 0 && selAnim < selectedAnims.length) ? selectedAnims[selAnim] : null;
+  Anim? get currentAnim => (selAnim >= 0 && selAnim < selectedAnims.length)
+      ? selectedAnims[selAnim]
+      : null;
 
   // ---- recent files for the Open dialog ----
   static const recents = <RecentFile>[
-    RecentFile('beach.comics', DocType.comics, 'Comics · 1080×1920 · edited today'),
-    RecentFile('city.comics', DocType.comics, 'Comics · 1080×1920 · 3 days ago'),
-    RecentFile('island.puzzle', DocType.puzzle, 'Puzzle · 1024×768 · last week'),
-    RecentFile('maze.puzzle', DocType.puzzle, 'Puzzle · 1024×768 · 2 weeks ago'),
+    RecentFile(
+      'beach.comics',
+      DocType.comics,
+      'Comics · 1080×1920 · edited today',
+    ),
+    RecentFile(
+      'city.comics',
+      DocType.comics,
+      'Comics · 1080×1920 · 3 days ago',
+    ),
+    RecentFile(
+      'island.puzzle',
+      DocType.puzzle,
+      'Puzzle · 1024×768 · last week',
+    ),
+    RecentFile(
+      'maze.puzzle',
+      DocType.puzzle,
+      'Puzzle · 1024×768 · 2 weeks ago',
+    ),
   ];
 
   // ---------- v2.9: реальные файлы через headless-ядро ----------
   final ComicsCore core = createComicsCore();
   CoreDocument? coreDoc;
   String? coreError;
+
+  /// Reports a failure that occurred before [openPath] could reach the core,
+  /// such as an unreadable operating-system document URI.
+  void reportExternalOpenError(String message) {
+    coreError = message;
+    notifyListeners();
+  }
 
   bool get coreAvailable => core.isAvailable;
 
@@ -317,6 +428,7 @@ class EditorController extends ChangeNotifier {
         tempFolder: result['tempFolder'] as String?,
       );
       doc = coreDoc!.doc;
+      _resetWorkspaceState();
       coreError = null;
       resetViewport();
       _clearSelection();
@@ -347,7 +459,9 @@ class EditorController extends ChangeNotifier {
   Future<bool> exportWithDialog() async {
     final document = coreDoc;
     if (document == null) return false;
-    final fileName = document.doc.name.isEmpty ? 'untitled.comics' : document.doc.name;
+    final fileName = document.doc.name.isEmpty
+        ? 'untitled.comics'
+        : document.doc.name;
     try {
       if (Platform.isIOS || Platform.isAndroid) {
         final tempPath =
@@ -412,6 +526,11 @@ class EditorController extends ChangeNotifier {
       player.dispose();
     }
     canvasViewport.dispose();
+    viewerController.dispose();
+    final previewDirectory = _previewDirectory;
+    if (previewDirectory != null && previewDirectory.existsSync()) {
+      previewDirectory.deleteSync(recursive: true);
+    }
     core.dispose();
     super.dispose();
   }
@@ -426,6 +545,7 @@ class EditorController extends ChangeNotifier {
       height: type == DocType.comics ? 1920 : 768,
     );
     _history.clear();
+    _resetWorkspaceState();
     resetViewport();
     _clearSelection();
     notifyListeners();
@@ -440,6 +560,7 @@ class EditorController extends ChangeNotifier {
       height: f.type == DocType.comics ? 1920 : 768,
     );
     _history.clear();
+    _resetWorkspaceState();
     resetViewport();
     if (f.name == 'beach.comics') _seedBeach();
     _clearSelection();
@@ -447,28 +568,49 @@ class EditorController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _resetWorkspaceState() {
+    workspace = EditorWorkspace.editor;
+    propertiesTab = PropertiesTab.selection;
+    viewerSource = null;
+    _previewRevision++;
+  }
+
   /// The sample scene used across the mockups.
   void _seedBeach() {
     final d = doc!;
     d.layers
-      ..add(EditorLayer('sky.png', at: const Offset(0, -40))
-        ..swatch = const Color(0xFF2C4256)
-        ..size = 1.0)
-      ..add(EditorLayer('clouds.png', at: const Offset(40, 120))
-        ..swatch = const Color(0xFF4E555C)
-        ..size = .5)
-      ..add(EditorLayer('hero.png', at: const Offset(70, 210))
-        ..swatch = const Color(0xFF57422D)
-        ..size = .55
-        ..anims.add(Anim(AnimType.rotate, start: 210, end: 360)..angle = 45)
-        ..anims.add(Anim(AnimType.alpha, start: 360, end: 480)..alpha = .5))
-      ..add(EditorLayer('foreground.png', at: const Offset(0, 430))
-        ..swatch = const Color(0xFF374A32)
-        ..size = 1.0
-        ..visible = false);
+      ..add(
+        EditorLayer('sky.png', at: const Offset(0, -40))
+          ..swatch = const Color(0xFF2C4256)
+          ..size = 1.0,
+      )
+      ..add(
+        EditorLayer('clouds.png', at: const Offset(40, 120))
+          ..swatch = const Color(0xFF4E555C)
+          ..size = .5,
+      )
+      ..add(
+        EditorLayer('hero.png', at: const Offset(70, 210))
+          ..swatch = const Color(0xFF57422D)
+          ..size = .55
+          ..anims.add(Anim(AnimType.rotate, start: 210, end: 360)..angle = 45)
+          ..anims.add(Anim(AnimType.alpha, start: 360, end: 480)..alpha = .5),
+      )
+      ..add(
+        EditorLayer('foreground.png', at: const Offset(0, 430))
+          ..swatch = const Color(0xFF374A32)
+          ..size = 1.0
+          ..visible = false,
+      );
     d.sounds
-      ..add(EditorSound('wind.mp3')..anims.add(Anim(AnimType.sound, start: 140, end: 320)))
-      ..add(EditorSound('wave.mp3')..anims.add(Anim(AnimType.sound, start: 420, end: 560)));
+      ..add(
+        EditorSound('wind.mp3')
+          ..anims.add(Anim(AnimType.sound, start: 140, end: 320)),
+      )
+      ..add(
+        EditorSound('wave.mp3')
+          ..anims.add(Anim(AnimType.sound, start: 420, end: 560)),
+      );
   }
 
   void setLanguage(Lang l) {
@@ -514,8 +656,12 @@ class EditorController extends ChangeNotifier {
   List<int> _balloonIndices() {
     final d = doc;
     if (d == null) return const [];
-    bool isBalloonKind(EditorLayer l) => l.kind == 'balloon' || l.kind == 'caption';
-    return [for (var i = 0; i < d.layers.length; i++) if (isBalloonKind(d.layers[i])) i];
+    bool isBalloonKind(EditorLayer l) =>
+        l.kind == 'balloon' || l.kind == 'caption';
+    return [
+      for (var i = 0; i < d.layers.length; i++)
+        if (isBalloonKind(d.layers[i])) i,
+    ];
   }
 
   /// vdd-comics-editor-uiux-lettering, Task 5.6: 1-based `(position, total)`
@@ -539,8 +685,13 @@ class EditorController extends ChangeNotifier {
   void stepBalloon(int direction) {
     final indices = _balloonIndices();
     if (indices.isEmpty) return;
-    final currentPos = selKind == SelKind.layer ? indices.indexOf(selIndex) : -1;
-    final nextPos = (currentPos == -1 ? 0 : currentPos + direction).clamp(0, indices.length - 1);
+    final currentPos = selKind == SelKind.layer
+        ? indices.indexOf(selIndex)
+        : -1;
+    final nextPos = (currentPos == -1 ? 0 : currentPos + direction).clamp(
+      0,
+      indices.length - 1,
+    );
     selectLayer(indices[nextPos]);
   }
 
@@ -558,11 +709,24 @@ class EditorController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void previewCanvasSize(int? w, int? h) {
+    if (doc == null) return;
+    if (w != null) doc!.width = w;
+    if (h != null) doc!.height = h;
+    notifyListeners();
+  }
+
   void setScale(double s) {
     if (doc == null) return;
     _beginHistory();
     doc?.scale = s;
     _commitHistory();
+    notifyListeners();
+  }
+
+  void previewScale(double value) {
+    if (doc == null) return;
+    doc!.scale = value;
     notifyListeners();
   }
 
@@ -601,9 +765,14 @@ class EditorController extends ChangeNotifier {
   void addLayer() {
     final d = doc!;
     _beginHistory();
-    final l = EditorLayer('layer_${d.layers.length + 1}.png',
-        at: Offset(40, 60.0 + d.layers.length * 30))
-      ..swatch = Colors.primaries[d.layers.length % Colors.primaries.length].shade700;
+    final l =
+        EditorLayer(
+            'layer_${d.layers.length + 1}.png',
+            at: Offset(40, 60.0 + d.layers.length * 30),
+          )
+          ..swatch = Colors
+              .primaries[d.layers.length % Colors.primaries.length]
+              .shade700;
     d.layers.add(l);
     _commitHistory();
     selectLayer(d.layers.length - 1);
@@ -712,7 +881,10 @@ class EditorController extends ChangeNotifier {
     final layersDir = '$tempFolder/layers';
     await deleteTiles(layersDir, slot.file.isEmpty ? null : slot.file);
     final tiled = await writeTiles(
-        bytes: bytes, layersDir: layersDir, name: '${sanitizeStem(layer.name)}_$langCode');
+      bytes: bytes,
+      layersDir: layersDir,
+      name: '${sanitizeStem(layer.name)}_$langCode',
+    );
 
     _beginHistory();
     slot.file = tiled.fileTemplate;
@@ -737,7 +909,10 @@ class EditorController extends ChangeNotifier {
     final layersDir = '$tempFolder/layers';
     await deleteSingleFile(layersDir, slot.popup.isEmpty ? null : slot.popup);
     final fileName = await writeSingleFile(
-        bytes: bytes, layersDir: layersDir, name: '${sanitizeStem(layer.name)}_${langCode}_popup');
+      bytes: bytes,
+      layersDir: layersDir,
+      name: '${sanitizeStem(layer.name)}_${langCode}_popup',
+    );
 
     _beginHistory();
     slot.popup = fileName;
@@ -753,7 +928,10 @@ class EditorController extends ChangeNotifier {
   /// (not an error) or if there's nothing to write to yet (no open document).
   Future<bool> pickImageFile(String langCode) async {
     if (selectedLayer == null || coreDoc?.tempFolder == null) return false;
-    final result = await FilePicker.pickFiles(type: FileType.image, withData: true);
+    final result = await FilePicker.pickFiles(
+      type: FileType.image,
+      withData: true,
+    );
     final bytes = result?.files.single.bytes;
     if (bytes == null) return false; // отмена — не ошибка
     await setImageFile(langCode, bytes);
@@ -763,7 +941,10 @@ class EditorController extends ChangeNotifier {
   /// Same as [pickImageFile] but for `Popup`.
   Future<bool> pickImagePopup(String langCode) async {
     if (selectedLayer == null || coreDoc?.tempFolder == null) return false;
-    final result = await FilePicker.pickFiles(type: FileType.image, withData: true);
+    final result = await FilePicker.pickFiles(
+      type: FileType.image,
+      withData: true,
+    );
     final bytes = result?.files.single.bytes;
     if (bytes == null) return false;
     await setImagePopup(langCode, bytes);
@@ -782,7 +963,9 @@ class EditorController extends ChangeNotifier {
         ? doc!.layers[sourceLayerIndex]
         : null;
     final hasArtwork = sourceLayer != null && sourceLayer.images.isNotEmpty;
-    final dims = document == null ? null : imageDimensions(document, sourceLayerIndex, 0);
+    final dims = document == null
+        ? null
+        : imageDimensions(document, sourceLayerIndex, 0);
     final session = CuttingSession(
       sourceImageBytes: sourceImageBytes,
       sourceLayerIndex: sourceLayerIndex,
@@ -793,29 +976,32 @@ class EditorController extends ChangeNotifier {
     cuttingSession = session;
     notifyListeners();
 
-    _cuttingSubscription =
-        cuttingClient.segment(sourceImageBytes: sourceImageBytes).listen((event) {
-      // Ignore events from a session that's since been replaced/cancelled (cuttingSession was
-      // reassigned or cleared) -- this closure captured `session`, not the live field.
-      if (!identical(cuttingSession, session)) return;
-      switch (event) {
-        case cutting.RoutingDecided(:final onDevice, :final reason):
-          session.onDevice = onDevice;
-          session.routingReason = reason;
-        case cutting.Progress(:final stage):
-          session.stage = stage;
-        case cutting.Success(:final regions):
-          session.regions = regions.map((r) => PendingRegion(region: r)).toList();
-          session.stage = null;
-          session.completed = true;
-        case cutting.Failure(:final reason, :final retryable):
-          session.failureReason = reason;
-          session.failureRetryable = retryable;
-          session.stage = null;
-          session.completed = true;
-      }
-      notifyListeners();
-    });
+    _cuttingSubscription = cuttingClient
+        .segment(sourceImageBytes: sourceImageBytes)
+        .listen((event) {
+          // Ignore events from a session that's since been replaced/cancelled (cuttingSession was
+          // reassigned or cleared) -- this closure captured `session`, not the live field.
+          if (!identical(cuttingSession, session)) return;
+          switch (event) {
+            case cutting.RoutingDecided(:final onDevice, :final reason):
+              session.onDevice = onDevice;
+              session.routingReason = reason;
+            case cutting.Progress(:final stage):
+              session.stage = stage;
+            case cutting.Success(:final regions):
+              session.regions = regions
+                  .map((r) => PendingRegion(region: r))
+                  .toList();
+              session.stage = null;
+              session.completed = true;
+            case cutting.Failure(:final reason, :final retryable):
+              session.failureReason = reason;
+              session.failureRetryable = retryable;
+              session.stage = null;
+              session.completed = true;
+          }
+          notifyListeners();
+        });
   }
 
   /// Cancels an in-flight session (kills the subprocess via [ProcessCuttingClient]'s
@@ -841,12 +1027,14 @@ class EditorController extends ChangeNotifier {
     final layers = doc!.layers;
     bool isStale;
     if (session.sourceLayerIndex >= layers.length) {
-      isStale = true; // the source layer itself is gone (deleted, or doc reloaded/undone past it)
+      isStale =
+          true; // the source layer itself is gone (deleted, or doc reloaded/undone past it)
     } else {
       final layer = layers[session.sourceLayerIndex];
       final currentFile = layer.images.isEmpty ? '' : layer.images.first.file;
       final dims = imageDimensions(document, session.sourceLayerIndex, 0);
-      isStale = currentFile != session.sourceFileRef ||
+      isStale =
+          currentFile != session.sourceFileRef ||
           dims == null ||
           dims.width != session.sourceWidth ||
           dims.height != session.sourceHeight;
@@ -870,7 +1058,9 @@ class EditorController extends ChangeNotifier {
     if (session == null || !session.stale) return;
     if (document != null && session.sourceLayerIndex < doc!.layers.length) {
       final layer = doc!.layers[session.sourceLayerIndex];
-      session.sourceFileRef = layer.images.isEmpty ? '' : layer.images.first.file;
+      session.sourceFileRef = layer.images.isEmpty
+          ? ''
+          : layer.images.first.file;
       final dims = imageDimensions(document, session.sourceLayerIndex, 0);
       session.sourceWidth = dims?.width ?? 0;
       session.sourceHeight = dims?.height ?? 0;
@@ -937,11 +1127,15 @@ class EditorController extends ChangeNotifier {
     final position = sourceLayer.translate + pending.region.bbox.topLeft;
     final layersDir = '$tempFolder/layers';
     final stem = sanitizeStem('${pending.region.kind}_region_$regionIndex');
-    final tiled =
-        await writeTiles(bytes: pending.region.cropPng, layersDir: layersDir, name: stem);
+    final tiled = await writeTiles(
+      bytes: pending.region.cropPng,
+      layersDir: layersDir,
+      name: stem,
+    );
 
     _beginHistory();
-    final newLayer = EditorLayer(tiled.fileTemplate, at: position)..kind = pending.region.kind;
+    final newLayer = EditorLayer(tiled.fileTemplate, at: position)
+      ..kind = pending.region.kind;
     newLayer.anims.first.x = position.dx;
     doc!.layers.add(newLayer);
     pending.status = RegionStatus.accepted;
@@ -970,7 +1164,8 @@ class EditorController extends ChangeNotifier {
     final targetName = name.trim().isEmpty ? 'unclustered' : name.trim();
     final dir = Directory('$libraryRoot/$kindDir/$targetName');
     await dir.create(recursive: true);
-    final fileName = 'r${regionIndex}_${DateTime.now().microsecondsSinceEpoch}.png';
+    final fileName =
+        'r${regionIndex}_${DateTime.now().microsecondsSinceEpoch}.png';
     await File('${dir.path}/$fileName').writeAsBytes(pending.region.cropPng);
     return true;
   }
@@ -987,12 +1182,20 @@ class EditorController extends ChangeNotifier {
     final d = doc!;
 
     final layersDir = '$tempFolder/layers';
-    final stem = sanitizeStem('${kind}_library_${DateTime.now().microsecondsSinceEpoch}');
-    final tiled = await writeTiles(bytes: bytes, layersDir: layersDir, name: stem);
+    final stem = sanitizeStem(
+      '${kind}_library_${DateTime.now().microsecondsSinceEpoch}',
+    );
+    final tiled = await writeTiles(
+      bytes: bytes,
+      layersDir: layersDir,
+      name: stem,
+    );
 
     _beginHistory();
-    final newLayer = EditorLayer(tiled.fileTemplate, at: Offset(40, 60.0 + d.layers.length * 30))
-      ..kind = kind;
+    final newLayer = EditorLayer(
+      tiled.fileTemplate,
+      at: Offset(40, 60.0 + d.layers.length * 30),
+    )..kind = kind;
     d.layers.add(newLayer);
     _commitHistory();
     notifyListeners();
@@ -1003,8 +1206,10 @@ class EditorController extends ChangeNotifier {
   void addSound() {
     _beginHistory();
     final start = currentTime.round();
-    doc!.sounds.add(EditorSound('sound_${doc!.sounds.length + 1}.mp3')
-      ..anims.add(Anim(AnimType.sound, start: start, end: start + 200)));
+    doc!.sounds.add(
+      EditorSound('sound_${doc!.sounds.length + 1}.mp3')
+        ..anims.add(Anim(AnimType.sound, start: start, end: start + 200)),
+    );
     _commitHistory();
     selectSound(doc!.sounds.length - 1);
   }
@@ -1056,6 +1261,13 @@ class EditorController extends ChangeNotifier {
     _beginHistory();
     fn(a);
     _commitHistory();
+    notifyListeners();
+  }
+
+  void previewAnim(void Function(Anim a) fn) {
+    final animation = currentAnim;
+    if (animation == null) return;
+    fn(animation);
     notifyListeners();
   }
 }

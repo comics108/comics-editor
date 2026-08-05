@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 
 import '../controller.dart';
+import '../responsive.dart';
 import '../theme.dart';
 import 'common.dart';
 
 /// Left "Scene" column: canvas settings + Layers + Sounds
 /// (LayersListControl + SoundsListControl + SettingsControl in the original).
 class ScenePanel extends StatelessWidget {
-  const ScenePanel({super.key, this.showSettings = true});
+  const ScenePanel({super.key, this.showSettings = false});
   final bool showSettings;
 
   @override
@@ -24,30 +25,35 @@ class ScenePanel extends StatelessWidget {
               children: [
                 const Text('CANVAS', style: kSectionLabel),
                 const SizedBox(height: 10),
-                Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                  Expanded(
-                    child: NumberField(
-                      label: 'Width',
-                      value: c.doc!.width,
-                      height: 38,
-                      onChanged: (v) => c.setCanvasSize(v.toInt(), null),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: NumberField(
+                        label: 'Width',
+                        value: c.doc!.width,
+                        height: 38,
+                        onChanged: (v) => c.setCanvasSize(v.toInt(), null),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: NumberField(
-                      label: 'Height',
-                      value: c.doc!.height,
-                      height: 38,
-                      onChanged: (v) => c.setCanvasSize(null, v.toInt()),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: NumberField(
+                        label: 'Height',
+                        value: c.doc!.height,
+                        height: 38,
+                        onChanged: (v) => c.setCanvasSize(null, v.toInt()),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  HsButton('Convert',
+                    const SizedBox(width: 8),
+                    HsButton(
+                      'Convert',
                       variant: HsVariant.secondary,
                       height: 38,
-                      onTap: () => _convertToast(context)),
-                ]),
+                      onTap: () => _convertToast(context),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -69,11 +75,13 @@ class ScenePanel extends StatelessWidget {
   }
 
   void _convertToast(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-      behavior: SnackBarBehavior.floating,
-      backgroundColor: Hs.gray800,
-      content: Text('Converting artwork to canvas size…'),
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Hs.gray800,
+        content: Text('Converting artwork to canvas size…'),
+      ),
+    );
   }
 }
 
@@ -85,10 +93,12 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
-      child: Row(children: [
-        Expanded(child: Text(title, style: kSectionLabel)),
-        ...actions,
-      ]),
+      child: Row(
+        children: [
+          Expanded(child: Text(title, style: kSectionLabel)),
+          ...actions,
+        ],
+      ),
     );
   }
 }
@@ -104,11 +114,24 @@ class _LayersSection extends StatelessWidget {
         _SectionHeader('LAYERS', [
           HsIconButton(Icons.add, tooltip: 'Add', onTap: c.addLayer),
           const SizedBox(width: 6),
-          HsIconButton(Icons.arrow_upward, tooltip: 'Up', onTap: () => c.moveLayer(-1)),
+          HsIconButton(
+            Icons.arrow_upward,
+            tooltip: 'Up',
+            onTap: () => c.moveLayer(-1),
+          ),
           const SizedBox(width: 6),
-          HsIconButton(Icons.arrow_downward, tooltip: 'Down', onTap: () => c.moveLayer(1)),
+          HsIconButton(
+            Icons.arrow_downward,
+            tooltip: 'Down',
+            onTap: () => c.moveLayer(1),
+          ),
           const SizedBox(width: 6),
-          HsIconButton(Icons.close, filled: true, tooltip: 'Delete', onTap: c.deleteSelected),
+          HsIconButton(
+            Icons.close,
+            filled: true,
+            tooltip: 'Delete',
+            onTap: c.deleteSelected,
+          ),
         ]),
         Expanded(
           child: layers.isEmpty
@@ -132,6 +155,7 @@ class _LayerRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = c.doc!.layers[i];
     final selected = c.selKind == SelKind.layer && c.selIndex == i;
+    final eyeSize = formFactorOf(context).isTouch ? 44.0 : 32.0;
     return InkWell(
       onTap: () => c.selectLayer(i),
       child: Container(
@@ -139,27 +163,45 @@ class _LayerRow extends StatelessWidget {
           color: selected ? Hs.blue100 : Hs.white,
           border: Border(
             left: BorderSide(
-                color: selected ? Hs.blue500 : Colors.transparent, width: 3),
+              color: selected ? Hs.blue500 : Colors.transparent,
+              width: 3,
+            ),
             top: const BorderSide(color: Hs.dividerLight),
           ),
         ),
         padding: const EdgeInsets.fromLTRB(9, 8, 12, 8),
-        child: Row(children: [
-          HsToggle(value: l.visible, onTap: () => c.toggleVisible(i)),
-          const SizedBox(width: 10),
-          KindChip(l.kind),
-          const SizedBox(width: 8),
-          Opacity(opacity: l.visible ? 1 : .4, child: HatchSwatch(l.swatch)),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(l.name,
+        child: Row(
+          children: [
+            Semantics(
+              button: true,
+              label: l.visible
+                  ? 'Hide layer ${l.name}'
+                  : 'Show layer ${l.name}',
+              child: HsIconButton(
+                l.visible ? Icons.visibility : Icons.visibility_off,
+                size: eyeSize,
+                tooltip: l.visible ? 'Hide layer' : 'Show layer',
+                onTap: () => c.toggleVisible(i),
+              ),
+            ),
+            const SizedBox(width: 10),
+            KindChip(l.kind),
+            const SizedBox(width: 8),
+            Opacity(opacity: l.visible ? 1 : .4, child: HatchSwatch(l.swatch)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                l.name,
                 style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
-                    color: l.visible ? Hs.textBody : Hs.textSecondary),
-                overflow: TextOverflow.ellipsis),
-          ),
-        ]),
+                  fontSize: 14,
+                  fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
+                  color: l.visible ? Hs.textBody : Hs.textSecondary,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -185,13 +227,13 @@ class KindChip extends StatelessWidget {
   /// can color-match this chip exactly instead of re-deriving their own mapping -- avoids the
   /// kind of two-different-colors-for-the-same-kind drift a duplicated mapping would risk.
   static (String, Color, IconData?) styleFor(String? kind) => switch (kind) {
-        'balloon' => ('Bln', Hs.violet500, Icons.chat_bubble_outline),
-        'caption' => ('Cap', Hs.amber500, Icons.crop_din),
-        'background' => ('Bg', Hs.teal500, Icons.image_outlined),
-        'character' => ('Chr', Hs.indigo500, Icons.person_outline),
-        'sound' => ('Snd', Hs.coral500, Icons.graphic_eq),
-        _ => ('Art', Hs.gray500, null),
-      };
+    'balloon' => ('Bln', Hs.violet500, Icons.chat_bubble_outline),
+    'caption' => ('Cap', Hs.amber500, Icons.crop_din),
+    'background' => ('Bg', Hs.teal500, Icons.image_outlined),
+    'character' => ('Chr', Hs.indigo500, Icons.person_outline),
+    'sound' => ('Snd', Hs.coral500, Icons.graphic_eq),
+    _ => ('Art', Hs.gray500, null),
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -203,15 +245,23 @@ class KindChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(Hs.rChip),
         border: Border.all(color: color.withValues(alpha: .4)),
       ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        if (icon != null) ...[
-          Icon(icon, size: 11, color: color),
-          const SizedBox(width: 3),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 11, color: color),
+            const SizedBox(width: 3),
+          ],
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
         ],
-        Text(label,
-            style:
-                TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color)),
-      ]),
+      ),
     );
   }
 }
@@ -228,16 +278,27 @@ class _SoundsSection extends StatelessWidget {
         _SectionHeader('SOUNDS', [
           HsIconButton(Icons.add, tooltip: 'Add', onTap: c.addSound),
           const SizedBox(width: 6),
-          HsIconButton(c.muted ? Icons.volume_off : Icons.volume_up,
-              filled: c.muted, tooltip: 'Mute', onTap: c.toggleMute),
+          HsIconButton(
+            c.muted ? Icons.volume_off : Icons.volume_up,
+            filled: c.muted,
+            tooltip: 'Mute',
+            onTap: c.toggleMute,
+          ),
           const SizedBox(width: 6),
-          HsIconButton(Icons.close, filled: true, tooltip: 'Delete', onTap: c.deleteSelected),
+          HsIconButton(
+            Icons.close,
+            filled: true,
+            tooltip: 'Delete',
+            onTap: c.deleteSelected,
+          ),
         ]),
         ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: 140),
           child: sounds.isEmpty
               ? const Padding(
-                  padding: EdgeInsets.only(bottom: 12), child: _Empty('No sounds'))
+                  padding: EdgeInsets.only(bottom: 12),
+                  child: _Empty('No sounds'),
+                )
               : ListView.builder(
                   shrinkWrap: true,
                   padding: const EdgeInsets.only(bottom: 6),
@@ -250,23 +311,35 @@ class _SoundsSection extends StatelessWidget {
                       child: Container(
                         color: sel ? Hs.blue100 : null,
                         padding: const EdgeInsets.fromLTRB(12, 7, 12, 7),
-                        child: Row(children: [
-                          Container(
-                            width: 22,
-                            height: 22,
-                            decoration: BoxDecoration(
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 22,
+                              height: 22,
+                              decoration: BoxDecoration(
                                 color: Hs.coral500,
-                                borderRadius: BorderRadius.circular(5)),
-                            child: Icon(c.muted ? Icons.volume_off : Icons.graphic_eq,
-                                size: 12, color: Hs.white),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                              child: Text(s.file,
-                                  style: TextStyle(
-                                      fontSize: 14,
-                                      color: c.muted ? Hs.textTertiary : Hs.textBody))),
-                        ]),
+                                borderRadius: BorderRadius.circular(5),
+                              ),
+                              child: Icon(
+                                c.muted ? Icons.volume_off : Icons.graphic_eq,
+                                size: 12,
+                                color: Hs.white,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                s.file,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: c.muted
+                                      ? Hs.textTertiary
+                                      : Hs.textBody,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     );
                   },
@@ -282,10 +355,12 @@ class _Empty extends StatelessWidget {
   final String text;
   @override
   Widget build(BuildContext context) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Text(text,
-              style: const TextStyle(color: Hs.textTertiary, fontSize: 13)),
-        ),
-      );
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Text(
+        text,
+        style: const TextStyle(color: Hs.textTertiary, fontSize: 13),
+      ),
+    ),
+  );
 }

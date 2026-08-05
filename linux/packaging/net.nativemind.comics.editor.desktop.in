@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Comics Editor
+Comment=Create and edit Comics documents
+Exec="@EXECUTABLE@" %f
+Icon=net.nativemind.comics.editor
+Terminal=false
+MimeType=application/vnd.nativemind.comics;
+Categories=Graphics;
+StartupWMClass=net.nativemind.comics.editor

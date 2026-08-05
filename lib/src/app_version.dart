@@ -13,7 +13,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 class AppVersion {
   AppVersion._();
 
-  static const String fallback = '3.2.0';
+  static const String fallback = '3.2.1';
 
   static String _current = fallback;
 

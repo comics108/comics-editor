@@ -1,12 +1,23 @@
 import Cocoa
 import FlutterMacOS
 import XCTest
+@testable import comics_editor
 
 class RunnerTests: XCTestCase {
+  func testQueueDrainsOnceInDeliveryOrder() {
+    let queue = DocumentOpenQueue()
+    queue.enqueue(path: "/cache/first.comics")
+    queue.enqueue(error: "copy failed")
 
-  func testExample() {
-    // If you add code to the Runner application, consider adding tests here.
-    // See https://developer.apple.com/documentation/xctest for more information about using XCTest.
+    XCTAssertEqual(queue.takeAll(), [
+      ["path": "/cache/first.comics"],
+      ["error": "copy failed"],
+    ])
+    XCTAssertTrue(queue.takeAll().isEmpty)
   }
 
+  func testComicsURLFilteringIsNarrowAndCaseInsensitive() {
+    XCTAssertTrue(DocumentOpenBroker.isComicsURL(URL(fileURLWithPath: "/tmp/story.COMICS")))
+    XCTAssertFalse(DocumentOpenBroker.isComicsURL(URL(fileURLWithPath: "/tmp/story.puzzle")))
+  }
 }

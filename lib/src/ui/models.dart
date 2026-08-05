@@ -17,12 +17,17 @@ enum DocType { comics, puzzle }
 /// `cutting` there, but the enum value isn't platform-gated at this layer.
 enum EditorMode { edit, lettering, cutting }
 
+/// Review is orthogonal to the existing editing modes and never persisted.
+enum EditorWorkspace { editor, viewer }
+
+enum PropertiesTab { selection, document, general }
+
 extension EditorModeLabel on EditorMode {
   String get label => switch (this) {
-        EditorMode.edit => 'Edit',
-        EditorMode.lettering => 'Lettering',
-        EditorMode.cutting => 'Cutting',
-      };
+    EditorMode.edit => 'Edit',
+    EditorMode.lettering => 'Lettering',
+    EditorMode.cutting => 'Cutting',
+  };
 }
 
 const kEditorModes = EditorMode.values;
@@ -31,10 +36,10 @@ enum Lang { en, ru, hi }
 
 extension LangLabel on Lang {
   String get label => switch (this) {
-        Lang.en => 'En',
-        Lang.ru => 'Ru',
-        Lang.hi => 'Hi',
-      };
+    Lang.en => 'En',
+    Lang.ru => 'Ru',
+    Lang.hi => 'Hi',
+  };
 }
 
 const kLangs = Lang.values;
@@ -44,12 +49,12 @@ enum AnimType { translate, rotate, scale, alpha, sound }
 
 extension AnimTypeLabel on AnimType {
   String get label => switch (this) {
-        AnimType.translate => 'Translate',
-        AnimType.rotate => 'Rotate',
-        AnimType.scale => 'Scale',
-        AnimType.alpha => 'Alpha',
-        AnimType.sound => 'Sound',
-      };
+    AnimType.translate => 'Translate',
+    AnimType.rotate => 'Rotate',
+    AnimType.scale => 'Scale',
+    AnimType.alpha => 'Alpha',
+    AnimType.sound => 'Sound',
+  };
 }
 
 /// One keyframed animation. Every anim shares Start/End (frames along the

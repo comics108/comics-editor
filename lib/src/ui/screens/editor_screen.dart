@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -19,6 +21,7 @@ import '../widgets/properties_panel.dart';
 import '../widgets/scene_panel.dart';
 import '../widgets/timeline.dart';
 import '../widgets/top_bar.dart';
+import '../widgets/viewer_workspace.dart';
 
 /// Ctrl+Z / Ctrl+Shift+Z — bound via [Shortcuts]/[Actions] (not a raw keyboard
 /// listener) so Flutter's own focus/action resolution keeps working: a
@@ -48,12 +51,30 @@ class EditorScreen extends StatelessWidget {
       builder: (context, _) {
         if (!c.isOpen) return const _Welcome();
         final ff = formFactorOf(context);
+        final content = switch (c.mode) {
+          EditorMode.lettering => switch (ff) {
+            FormFactor.desktop => const _LetteringDesktopBody(),
+            FormFactor.tablet => const _LetteringTabletBody(),
+            FormFactor.phone => const _LetteringPhoneBody(),
+          },
+          EditorMode.cutting => const _CuttingDesktopBody(),
+          EditorMode.edit when c.workspace == EditorWorkspace.viewer =>
+            const ViewerWorkspace(),
+          EditorMode.edit => switch (ff) {
+            FormFactor.desktop => const _DesktopBody(),
+            FormFactor.tablet => const _TabletBody(),
+            FormFactor.phone => const _PhoneBody(),
+          },
+        };
         return Shortcuts(
           shortcuts: {
             LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyZ):
                 const UndoIntent(),
-            LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.shift,
-                LogicalKeyboardKey.keyZ): const RedoIntent(),
+            LogicalKeySet(
+              LogicalKeyboardKey.control,
+              LogicalKeyboardKey.shift,
+              LogicalKeyboardKey.keyZ,
+            ): const RedoIntent(),
           },
           child: Actions(
             actions: {
@@ -72,23 +93,18 @@ class EditorScreen extends StatelessWidget {
                     ),
                     const Divider(height: 1, color: Hs.divider),
                     Expanded(
-                      child: switch (c.mode) {
-                        EditorMode.lettering => switch (ff) {
-                            FormFactor.desktop => const _LetteringDesktopBody(),
-                            FormFactor.tablet => const _LetteringTabletBody(),
-                            FormFactor.phone => const _LetteringPhoneBody(),
-                          },
-                        // vdd-comics-editor-ai-uiux: Cutting is desktop-only (the mode switch is
-                        // disabled on iOS/Android, per top_bar.dart's _CuttingModeIcon), so one
-                        // layout covers it regardless of `ff` -- this mode can't be reached from
-                        // a mobile build in the first place.
-                        EditorMode.cutting => const _CuttingDesktopBody(),
-                        EditorMode.edit => switch (ff) {
-                            FormFactor.desktop => const _DesktopBody(),
-                            FormFactor.tablet => const _TabletBody(),
-                            FormFactor.phone => const _PhoneBody(),
-                          },
-                      },
+                      child: Stack(
+                        children: [
+                          Positioned.fill(child: content),
+                          if (c.mode == EditorMode.edit && !ff.isPhone)
+                            Positioned(
+                              top: 8,
+                              left: 0,
+                              right: 0,
+                              child: _WorkspaceBar(c),
+                            ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -101,9 +117,39 @@ class EditorScreen extends StatelessWidget {
   }
 }
 
+class _WorkspaceBar extends StatelessWidget {
+  const _WorkspaceBar(this.controller);
+  final EditorController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Material(
+        color: Hs.white,
+        elevation: 2,
+        borderRadius: BorderRadius.circular(Hs.rChip),
+        child: Padding(
+          padding: const EdgeInsets.all(3),
+          child: HsSegmented<EditorWorkspace>(
+            values: EditorWorkspace.values,
+            labelOf: (workspace) => switch (workspace) {
+              EditorWorkspace.editor => 'Editor',
+              EditorWorkspace.viewer => 'Viewer',
+            },
+            selected: controller.workspace,
+            height: 32,
+            onChanged: controller.setWorkspace,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ---------------- lettering mode ----------------
 
-bool _isBalloonKind(EditorLayer? l) => l != null && (l.kind == 'balloon' || l.kind == 'caption');
+bool _isBalloonKind(EditorLayer? l) =>
+    l != null && (l.kind == 'balloon' || l.kind == 'caption');
 
 /// vdd-comics-editor-uiux-lettering, Task 5.6: `[<] N/M [>]` prev/next
 /// stepper, shared across all three platform Lettering layouts
@@ -119,19 +165,31 @@ class _BalloonStepper extends StatelessWidget {
   Widget build(BuildContext context) {
     final info = c.balloonStepInfo();
     if (info == null) return const SizedBox.shrink();
-    return Row(mainAxisSize: MainAxisSize.min, children: [
-      HsIconButton(Icons.chevron_left,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        HsIconButton(
+          Icons.chevron_left,
           size: compact ? 32 : 28,
           tooltip: 'Previous balloon',
-          onTap: info.position > 1 ? () => c.stepBalloon(-1) : null),
-      Text('${info.position}/${info.total}',
+          onTap: info.position > 1 ? () => c.stepBalloon(-1) : null,
+        ),
+        Text(
+          '${info.position}/${info.total}',
           style: const TextStyle(
-              fontSize: 13, fontWeight: FontWeight.w500, color: Hs.textSecondary)),
-      HsIconButton(Icons.chevron_right,
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: Hs.textSecondary,
+          ),
+        ),
+        HsIconButton(
+          Icons.chevron_right,
           size: compact ? 32 : 28,
           tooltip: 'Next balloon',
-          onTap: info.position < info.total ? () => c.stepBalloon(1) : null),
-    ]);
+          onTap: info.position < info.total ? () => c.stepBalloon(1) : null,
+        ),
+      ],
+    );
   }
 }
 
@@ -151,70 +209,89 @@ class _LetteringDesktopBody extends StatelessWidget {
     final c = EditorScope.of(context);
     return Padding(
       padding: const EdgeInsets.all(10),
-      child: Row(children: [
-        SizedBox(
-          width: 300,
-          child: PanelCard(
-            child: FutureBuilder<LanguageRegistry>(
-              future: c.languageRegistry,
-              builder: (context, snapshot) {
-                final registry = snapshot.data;
-                if (registry == null) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                return BalloonRail(c, registry: registry, langCode: c.lang.name);
-              },
+      child: Row(
+        children: [
+          SizedBox(
+            width: 300,
+            child: PanelCard(
+              child: FutureBuilder<LanguageRegistry>(
+                future: c.languageRegistry,
+                builder: (context, snapshot) {
+                  final registry = snapshot.data;
+                  if (registry == null) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  return BalloonRail(
+                    c,
+                    registry: registry,
+                    langCode: c.lang.name,
+                  );
+                },
+              ),
             ),
           ),
-        ),
-        const SizedBox(width: 10),
-        const Expanded(child: CanvasView()),
-        const SizedBox(width: 10),
-        SizedBox(
-          width: 330,
-          child: PanelCard(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              if (c.balloonStepInfo() != null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
-                  child: Align(alignment: Alignment.centerRight, child: _BalloonStepper(c)),
-                ),
-              Expanded(
-                child: _isBalloonKind(c.selectedLayer)
-                    ? Padding(
-                        padding: const EdgeInsets.all(14),
-                        child: SingleChildScrollView(
-                          child: FutureBuilder<LanguageRegistry>(
-                            future: c.languageRegistry,
-                            builder: (context, snapshot) {
-                              final registry = snapshot.data;
-                              if (registry == null) {
-                                return const Center(child: CircularProgressIndicator());
-                              }
-                              return BalloonEditorCard(
-                                key: ValueKey(c.selectedLayer),
-                                controller: c,
-                                layer: c.selectedLayer!,
-                                registry: registry,
-                                aiClient: c.aiClient,
-                              );
-                            },
-                          ),
-                        ),
-                      )
-                    : const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(24),
-                          child: Text('Select a balloon or caption layer from the rail',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: Hs.textTertiary, fontSize: 14)),
-                        ),
+          const SizedBox(width: 10),
+          const Expanded(child: CanvasView()),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 330,
+            child: PanelCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (c.balloonStepInfo() != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: _BalloonStepper(c),
                       ),
+                    ),
+                  Expanded(
+                    child: _isBalloonKind(c.selectedLayer)
+                        ? Padding(
+                            padding: const EdgeInsets.all(14),
+                            child: SingleChildScrollView(
+                              child: FutureBuilder<LanguageRegistry>(
+                                future: c.languageRegistry,
+                                builder: (context, snapshot) {
+                                  final registry = snapshot.data;
+                                  if (registry == null) {
+                                    return const Center(
+                                      child: CircularProgressIndicator(),
+                                    );
+                                  }
+                                  return BalloonEditorCard(
+                                    key: ValueKey(c.selectedLayer),
+                                    controller: c,
+                                    layer: c.selectedLayer!,
+                                    registry: registry,
+                                    aiClient: c.aiClient,
+                                  );
+                                },
+                              ),
+                            ),
+                          )
+                        : const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(24),
+                              child: Text(
+                                'Select a balloon or caption layer from the rail',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Hs.textTertiary,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ),
+                  ),
+                ],
               ),
-            ]),
+            ),
           ),
-        ),
-      ]),
+        ],
+      ),
     );
   }
 }
@@ -235,69 +312,86 @@ class _LetteringTabletBody extends StatelessWidget {
     final c = EditorScope.of(context);
     return Padding(
       padding: const EdgeInsets.all(8),
-      child: Row(children: [
-        SizedBox(
-          width: 300,
-          child: PanelCard(
-            child: FutureBuilder<LanguageRegistry>(
-              future: c.languageRegistry,
-              builder: (context, snapshot) {
-                final registry = snapshot.data;
-                if (registry == null) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                return BalloonRail(c, registry: registry, langCode: c.lang.name);
-              },
+      child: Row(
+        children: [
+          SizedBox(
+            width: 300,
+            child: PanelCard(
+              child: FutureBuilder<LanguageRegistry>(
+                future: c.languageRegistry,
+                builder: (context, snapshot) {
+                  final registry = snapshot.data;
+                  if (registry == null) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  return BalloonRail(
+                    c,
+                    registry: registry,
+                    langCode: c.lang.name,
+                  );
+                },
+              ),
             ),
           ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: PanelCard(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              if (c.balloonStepInfo() != null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-                  child: Align(
-                      alignment: Alignment.centerRight,
-                      child: _BalloonStepper(c, compact: true)),
-                ),
-              Expanded(
-                child: _isBalloonKind(c.selectedLayer)
-                    ? Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: SingleChildScrollView(
-                          child: FutureBuilder<LanguageRegistry>(
-                            future: c.languageRegistry,
-                            builder: (context, snapshot) {
-                              final registry = snapshot.data;
-                              if (registry == null) {
-                                return const Center(child: CircularProgressIndicator());
-                              }
-                              return BalloonEditorCard(
-                                key: ValueKey(c.selectedLayer),
-                                controller: c,
-                                layer: c.selectedLayer!,
-                                registry: registry,
-                                aiClient: c.aiClient,
-                              );
-                            },
-                          ),
-                        ),
-                      )
-                    : const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(24),
-                          child: Text('Select a balloon or caption layer from the rail',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: Hs.textTertiary, fontSize: 14)),
-                        ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: PanelCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (c.balloonStepInfo() != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: _BalloonStepper(c, compact: true),
                       ),
+                    ),
+                  Expanded(
+                    child: _isBalloonKind(c.selectedLayer)
+                        ? Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: SingleChildScrollView(
+                              child: FutureBuilder<LanguageRegistry>(
+                                future: c.languageRegistry,
+                                builder: (context, snapshot) {
+                                  final registry = snapshot.data;
+                                  if (registry == null) {
+                                    return const Center(
+                                      child: CircularProgressIndicator(),
+                                    );
+                                  }
+                                  return BalloonEditorCard(
+                                    key: ValueKey(c.selectedLayer),
+                                    controller: c,
+                                    layer: c.selectedLayer!,
+                                    registry: registry,
+                                    aiClient: c.aiClient,
+                                  );
+                                },
+                              ),
+                            ),
+                          )
+                        : const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(24),
+                              child: Text(
+                                'Select a balloon or caption layer from the rail',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Hs.textTertiary,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ),
+                  ),
+                ],
               ),
-            ]),
+            ),
           ),
-        ),
-      ]),
+        ],
+      ),
     );
   }
 }
@@ -331,15 +425,17 @@ class _LetteringPhoneBody extends StatelessWidget {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(4, 4, 8, 0),
-                child: Row(children: [
-                  TextButton.icon(
-                    onPressed: c.deselectForLettering,
-                    icon: const Icon(Icons.arrow_back_ios_new, size: 16),
-                    label: const Text('Balloons'),
-                  ),
-                  const Spacer(),
-                  _BalloonStepper(c, compact: true),
-                ]),
+                child: Row(
+                  children: [
+                    TextButton.icon(
+                      onPressed: c.deselectForLettering,
+                      icon: const Icon(Icons.arrow_back_ios_new, size: 16),
+                      label: const Text('Balloons'),
+                    ),
+                    const Spacer(),
+                    _BalloonStepper(c, compact: true),
+                  ],
+                ),
               ),
               Expanded(
                 child: Padding(
@@ -385,81 +481,93 @@ class _CuttingDesktopBodyState extends State<_CuttingDesktopBody> {
     final c = EditorScope.of(context);
     final session = c.cuttingSession;
     final hasSelectedRegion =
-        _selectedRegion != null && session != null && _selectedRegion! < session.regions.length;
+        _selectedRegion != null &&
+        session != null &&
+        _selectedRegion! < session.regions.length;
 
     return Padding(
       padding: const EdgeInsets.all(10),
-      child: Row(children: [
-        SizedBox(
-          width: 300,
-          child: PanelCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(children: [
-                  Expanded(
-                    child: _CuttingTabButton(
-                      label: 'Regions${session != null ? ' · ${session.regions.length}' : ''}',
-                      selected: !_libraryTab,
-                      onTap: () => setState(() => _libraryTab = false),
-                    ),
-                  ),
-                  Expanded(
-                    child: _CuttingTabButton(
-                      label: 'Library',
-                      selected: _libraryTab,
-                      onTap: () => setState(() => _libraryTab = true),
-                    ),
-                  ),
-                ]),
-                const Divider(height: 1, color: Hs.divider),
-                Expanded(
-                  child: _libraryTab
-                      ? LibraryBrowser(controller: c)
-                      : CuttingRegionRail(
-                          controller: c,
-                          selectedIndex: _selectedRegion,
-                          onSelect: (i) => setState(() => _selectedRegion = i),
-                        ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: CuttingCanvas(
-            controller: c,
-            selectedRegionIndex: _selectedRegion,
-            onSelectRegion: (i) => setState(() => _selectedRegion = i),
-          ),
-        ),
-        if (hasSelectedRegion) ...[
-          const SizedBox(width: 10),
+      child: Row(
+        children: [
           SizedBox(
-            width: 360,
-            child: SingleChildScrollView(
-              child: CuttingReviewCard(
-                controller: c,
-                regionIndex: _selectedRegion!,
-                onOpenInLettering: () {
-                  // The just-accepted region is always the last layer (acceptRegion appends) --
-                  // select it so Lettering mode lands on the balloon the reviewer just created,
-                  // not whatever was selected before switching into Cutting mode.
-                  c.selectLayer(c.doc!.layers.length - 1);
-                  c.setMode(EditorMode.lettering);
-                },
+            width: 300,
+            child: PanelCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _CuttingTabButton(
+                          label:
+                              'Regions${session != null ? ' · ${session.regions.length}' : ''}',
+                          selected: !_libraryTab,
+                          onTap: () => setState(() => _libraryTab = false),
+                        ),
+                      ),
+                      Expanded(
+                        child: _CuttingTabButton(
+                          label: 'Library',
+                          selected: _libraryTab,
+                          onTap: () => setState(() => _libraryTab = true),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 1, color: Hs.divider),
+                  Expanded(
+                    child: _libraryTab
+                        ? LibraryBrowser(controller: c)
+                        : CuttingRegionRail(
+                            controller: c,
+                            selectedIndex: _selectedRegion,
+                            onSelect: (i) =>
+                                setState(() => _selectedRegion = i),
+                          ),
+                  ),
+                ],
               ),
             ),
           ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: CuttingCanvas(
+              controller: c,
+              selectedRegionIndex: _selectedRegion,
+              onSelectRegion: (i) => setState(() => _selectedRegion = i),
+            ),
+          ),
+          if (hasSelectedRegion) ...[
+            const SizedBox(width: 10),
+            SizedBox(
+              width: 360,
+              child: SingleChildScrollView(
+                child: CuttingReviewCard(
+                  controller: c,
+                  regionIndex: _selectedRegion!,
+                  onOpenInLettering: () {
+                    // The just-accepted region is always the last layer (acceptRegion appends) --
+                    // select it so Lettering mode lands on the balloon the reviewer just created,
+                    // not whatever was selected before switching into Cutting mode.
+                    c.selectLayer(c.doc!.layers.length - 1);
+                    c.setMode(EditorMode.lettering);
+                  },
+                ),
+              ),
+            ),
+          ],
         ],
-      ]),
+      ),
     );
   }
 }
 
 class _CuttingTabButton extends StatelessWidget {
-  const _CuttingTabButton({required this.label, required this.selected, required this.onTap});
+  const _CuttingTabButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
   final String label;
   final bool selected;
   final VoidCallback onTap;
@@ -473,15 +581,20 @@ class _CuttingTabButton extends StatelessWidget {
         alignment: Alignment.center,
         decoration: BoxDecoration(
           border: Border(
-            bottom: BorderSide(color: selected ? Hs.blue500 : Colors.transparent, width: 2),
+            bottom: BorderSide(
+              color: selected ? Hs.blue500 : Colors.transparent,
+              width: 2,
+            ),
           ),
         ),
-        child: Text(label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: selected ? Hs.blue600 : Hs.textSecondary,
-            )),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: selected ? Hs.blue600 : Hs.textSecondary,
+          ),
+        ),
       ),
     );
   }
@@ -495,19 +608,23 @@ class _DesktopBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(10),
-      child: Column(children: [
-        Expanded(
-          child: Row(children: const [
-            SizedBox(width: 300, child: ScenePanel()),
-            SizedBox(width: 10),
-            Expanded(child: CanvasView()),
-            SizedBox(width: 10),
-            SizedBox(width: 330, child: PropertiesPanel()),
-          ]),
-        ),
-        const SizedBox(height: 10),
-        const SizedBox(height: 190, child: Timeline()),
-      ]),
+      child: Column(
+        children: [
+          Expanded(
+            child: Row(
+              children: const [
+                SizedBox(width: 300, child: ScenePanel()),
+                SizedBox(width: 10),
+                Expanded(child: CanvasView()),
+                SizedBox(width: 10),
+                SizedBox(width: 330, child: PropertiesPanel()),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          const SizedBox(height: 190, child: Timeline()),
+        ],
+      ),
     );
   }
 }
@@ -520,19 +637,23 @@ class _TabletBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(8),
-      child: Column(children: [
-        Expanded(
-          child: Row(children: const [
-            SizedBox(width: 250, child: ScenePanel()),
-            SizedBox(width: 8),
-            Expanded(child: CanvasView()),
-            SizedBox(width: 8),
-            SizedBox(width: 290, child: PropertiesPanel()),
-          ]),
-        ),
-        const SizedBox(height: 8),
-        _ExpandableTimeline(),
-      ]),
+      child: Column(
+        children: [
+          Expanded(
+            child: Row(
+              children: const [
+                SizedBox(width: 250, child: ScenePanel()),
+                SizedBox(width: 8),
+                Expanded(child: CanvasView()),
+                SizedBox(width: 8),
+                SizedBox(width: 290, child: PropertiesPanel()),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          _ExpandableTimeline(),
+        ],
+      ),
     );
   }
 }
@@ -552,20 +673,27 @@ class _ExpandableTimelineState extends State<_ExpandableTimeline> {
       curve: Hs.easeStandard,
       child: SizedBox(
         height: expanded ? 220 : 64,
-        child: Stack(children: [
-          Positioned.fill(
-              child: expanded ? const Timeline() : const Timeline(compact: true)),
-          Positioned(
-            right: 12,
-            top: 12,
-            child: IconButton(
-              onPressed: () => setState(() => expanded = !expanded),
-              icon: Icon(expanded ? Icons.expand_more : Icons.expand_less,
-                  color: Hs.primary),
-              tooltip: expanded ? 'Collapse timeline' : 'Expand timeline',
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: expanded
+                  ? const Timeline()
+                  : const Timeline(compact: true),
             ),
-          ),
-        ]),
+            Positioned(
+              right: 12,
+              top: 12,
+              child: IconButton(
+                onPressed: () => setState(() => expanded = !expanded),
+                icon: Icon(
+                  expanded ? Icons.expand_more : Icons.expand_less,
+                  color: Hs.primary,
+                ),
+                tooltip: expanded ? 'Collapse timeline' : 'Expand timeline',
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -578,29 +706,28 @@ class _PhoneBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = EditorScope.of(context);
-    return Stack(children: [
-      Padding(
-        padding: const EdgeInsets.fromLTRB(8, 8, 8, 96),
-        child: Column(children: [
-          const Expanded(child: CanvasView(showPreviewToggle: false)),
-          const SizedBox(height: 8),
-          const SizedBox(height: 60, child: Timeline(compact: true)),
-        ]),
-      ),
-      // bottom sheet launcher bar
-      Positioned(
-        left: 0,
-        right: 0,
-        bottom: 0,
-        child: _PhoneDock(c),
-      ),
-    ]);
+    return Stack(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 96),
+          child: Column(
+            children: [
+              const Expanded(child: CanvasView(showPreviewToggle: false)),
+              const SizedBox(height: 8),
+              const SizedBox(height: 60, child: Timeline(compact: true)),
+            ],
+          ),
+        ),
+        // bottom sheet launcher bar
+        Positioned(left: 0, right: 0, bottom: 0, child: _PhoneDock(c)),
+      ],
+    );
   }
 }
 
 class _PhoneDock extends StatelessWidget {
   const _PhoneDock(this.c);
-  final dynamic c;
+  final EditorController c;
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -609,27 +736,48 @@ class _PhoneDock extends StatelessWidget {
         border: Border(top: BorderSide(color: Hs.divider)),
       ),
       padding: EdgeInsets.only(
-          bottom: MediaQuery.paddingOf(context).bottom + 6, top: 8, left: 8, right: 8),
-      child: Row(children: [
-        _DockBtn(Icons.layers_outlined, 'Scene',
-            () => _sheet(context, const ScenePanelSheet())),
-        _DockBtn(Icons.tune, 'Properties',
-            () => _sheet(context, const PropertiesSheet())),
-        _DockBtn(Icons.add, 'New', () => showNewDialog(context)),
-        _DockBtn(Icons.folder_open_outlined, 'Open',
-            () => showOpenDialog(context)),
-      ]),
+        bottom: MediaQuery.paddingOf(context).bottom + 6,
+        top: 8,
+        left: 8,
+        right: 8,
+      ),
+      child: Row(
+        children: [
+          _DockBtn(
+            Icons.layers_outlined,
+            'Scene',
+            () => _sheet(context, const ScenePanelSheet()),
+          ),
+          _DockBtn(Icons.visibility_outlined, 'Viewer', () {
+            unawaited(c.refreshViewer());
+            _sheet(
+              context,
+              ViewerWorkspace(onClose: () => Navigator.pop(context)),
+            );
+          }),
+          _DockBtn(
+            Icons.tune,
+            'Properties',
+            () => _sheet(context, const PropertiesSheet()),
+          ),
+        ],
+      ),
     );
   }
 
-  static void _sheet(BuildContext context, Widget child) {
+  void _sheet(BuildContext context, Widget child) {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      enableDrag: false,
       backgroundColor: Hs.surfaceCloud,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (_) => FractionallySizedBox(heightFactor: .85, child: child),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => EditorScope(
+        controller: c,
+        child: FractionallySizedBox(heightFactor: .85, child: child),
+      ),
     );
   }
 }
@@ -647,12 +795,17 @@ class _DockBtn extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(icon, size: 22, color: Hs.primary),
-            const SizedBox(height: 2),
-            Text(label,
-                style: const TextStyle(fontSize: 11, color: Hs.textSecondary)),
-          ]),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 22, color: Hs.primary),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: const TextStyle(fontSize: 11, color: Hs.textSecondary),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -665,24 +818,28 @@ class ScenePanelSheet extends StatelessWidget {
   const ScenePanelSheet({super.key});
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.all(10),
-        child: Column(children: const [
-          _SheetGrip('Scene'),
-          Expanded(child: ScenePanel()),
-        ]),
-      );
+    padding: const EdgeInsets.all(10),
+    child: Column(
+      children: const [
+        _SheetGrip('Scene'),
+        Expanded(child: ScenePanel()),
+      ],
+    ),
+  );
 }
 
 class PropertiesSheet extends StatelessWidget {
   const PropertiesSheet({super.key});
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.all(10),
-        child: Column(children: const [
-          _SheetGrip('Properties'),
-          Expanded(child: PropertiesPanel()),
-        ]),
-      );
+    padding: const EdgeInsets.all(10),
+    child: Column(
+      children: const [
+        _SheetGrip('Properties'),
+        Expanded(child: PropertiesPanel()),
+      ],
+    ),
+  );
 }
 
 class _SheetGrip extends StatelessWidget {
@@ -690,22 +847,37 @@ class _SheetGrip extends StatelessWidget {
   final String title;
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Column(children: [
-        Container(
-          width: 40,
-          height: 4,
-          margin: const EdgeInsets.only(bottom: 10),
-          decoration: BoxDecoration(
-              color: Hs.gray400, borderRadius: BorderRadius.circular(2)),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onVerticalDragEnd: (details) {
+        if ((details.primaryVelocity ?? 0) > 300) Navigator.pop(context);
+      },
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Column(
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 10),
+              decoration: BoxDecoration(
+                color: Hs.gray400,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
         ),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: Text(title,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-        ),
-      ]),
+      ),
     );
   }
 }
@@ -726,31 +898,40 @@ class _Welcome extends StatelessWidget {
             children: [
               const BrandMark(size: 64),
               const SizedBox(height: 20),
-              const Text('Comics Editor',
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.w500)),
+              const Text(
+                'Comics Editor',
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.w500),
+              ),
               const SizedBox(height: 6),
-              const Text('Your workspace for comics & puzzles.',
-                  style: TextStyle(fontSize: 16, color: Hs.textSecondary)),
+              const Text(
+                'Your workspace for comics & puzzles.',
+                style: TextStyle(fontSize: 16, color: Hs.textSecondary),
+              ),
               const SizedBox(height: 28),
-              Wrap(spacing: 12, runSpacing: 12, alignment: WrapAlignment.center, children: [
-                SizedBox(
-                  width: 200,
-                  child: _BigAction(
-                    icon: Icons.add,
-                    label: 'New document',
-                    onTap: () => showNewDialog(context),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                alignment: WrapAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 200,
+                    child: _BigAction(
+                      icon: Icons.add,
+                      label: 'New document',
+                      onTap: () => showNewDialog(context),
+                    ),
                   ),
-                ),
-                SizedBox(
-                  width: 200,
-                  child: _BigAction(
-                    icon: Icons.folder_open_outlined,
-                    label: 'Open recent',
-                    filled: false,
-                    onTap: () => showOpenDialog(context),
+                  SizedBox(
+                    width: 200,
+                    child: _BigAction(
+                      icon: Icons.folder_open_outlined,
+                      label: 'Open recent',
+                      filled: false,
+                      onTap: () => showOpenDialog(context),
+                    ),
                   ),
-                ),
-              ]),
+                ],
+              ),
             ],
           ),
         ),
@@ -760,11 +941,12 @@ class _Welcome extends StatelessWidget {
 }
 
 class _BigAction extends StatelessWidget {
-  const _BigAction(
-      {required this.icon,
-      required this.label,
-      required this.onTap,
-      this.filled = true});
+  const _BigAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.filled = true,
+  });
   final IconData icon;
   final String label;
   final VoidCallback onTap;
@@ -786,11 +968,14 @@ class _BigAction extends StatelessWidget {
           children: [
             Icon(icon, size: 26, color: filled ? Hs.white : Hs.primary),
             const SizedBox(height: 8),
-            Text(label,
-                style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                    color: filled ? Hs.white : Hs.primary)),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+                color: filled ? Hs.white : Hs.primary,
+              ),
+            ),
           ],
         ),
       ),

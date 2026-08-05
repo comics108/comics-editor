@@ -198,6 +198,13 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  flutter_comics_viewer:
+    dependency: "direct main"
+    description:
+      path: "../../libs/comics_viewer/flutter_comics_viewer"
+      relative: true
+    source: path
+    version: "1.0.0"
   flutter_lints:
     dependency: "direct dev"
     description:
