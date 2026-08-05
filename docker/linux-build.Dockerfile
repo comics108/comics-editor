@@ -18,7 +18,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates curl git unzip xz-utils \
         clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev \
-        libgstreamer1.0-dev \
+        libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # .NET SDK — точная версия (не floating), см. dotnet-install.sh --version.
