@@ -173,6 +173,15 @@ class _LayerItem extends StatelessWidget {
     // directly, not EditorController itself, so this widget wouldn't otherwise
     // rebuild as currentTime changes (EditorScope only rebuilds on
     // EditorController.notifyListeners()).
+    //
+    // tdd-dot-comics-format Plan Task 5.4: KeyframeInterpolator now also
+    // accepts a wallClockMs parameter for time-basis anims (Anim.basis) --
+    // not wired to a live clock here. A live-ticking source was attempted
+    // and reverted (see EditorController's own note on this) after it broke
+    // the test suite's no-pending-timer invariant; a time-basis anim is
+    // real, tested, and correctly composed, but will render "frozen" at
+    // wallClockMs=0 in the actual running app until a lifecycle-safe live
+    // clock is wired in as a follow-up.
     return AnimatedBuilder(
       animation: c.canvasViewport,
       builder: (context, _) {

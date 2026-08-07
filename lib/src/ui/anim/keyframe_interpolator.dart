@@ -10,18 +10,47 @@ import '../models.dart';
 /// including the non-obvious detail that pivot is never eased -- it snaps
 /// straight to the active segment's own pivot, matching
 /// ScaleAnim.cs/RotateAnim.cs's `Interpolate` overrides.
+///
+/// tdd-dot-comics-format Plan Task 5.4: each function now also composes an
+/// independent time-driven contribution (per-`Anim` [AnimBasis.time],
+/// `03-specifications.md`/`04-visual.md` Screen 5) alongside the original
+/// scroll-driven one. Composition rule, per this plan's own resolution of
+/// Task 5.1(d): translate/rotate.angle *sum* (two independent additive
+/// motions); scale/alpha *multiply* (two independent multiplicative
+/// factors) -- in both cases the "no time-basis anims of this type" case
+/// yields exactly that operation's identity element (0 for sum, 1 for
+/// product), so every document with zero time-basis anims produces
+/// byte-identical results to before this change. Pivot (never eased) has
+/// no natural sum/product -- ties are broken toward the scroll dimension's
+/// own active pivot, since that's the only one any real content has ever
+/// used; this is a disclosed, not-otherwise-specified tie-break, not a
+/// finding from real data.
 class KeyframeInterpolator {
   KeyframeInterpolator._();
 
-  /// AnimType.translate. [fallback] (the layer's static `translate`) is used
-  /// only when the layer has zero translate-type anims at all -- unreachable
-  /// for normally-authored layers, since EditorLayer's constructor (and
-  /// legacy's Layer.Create) always seeds one anim whose Start=End=0
-  /// immediately qualifies as "already passed" from currentTime=0 onward.
-  /// Kept as a defensive fallback for malformed/hand-edited data, per
-  /// 03-specifications.md.
-  static Offset translateAt(List<Anim> anims, double currentTime, Offset fallback) {
-    final (prev, curr) = _findNearest(_sorted(anims, AnimType.translate), currentTime);
+  /// [scrollTime] drives scroll-basis anims (unchanged meaning/units from
+  /// before this plan). [wallClockMs] drives time-basis anims -- ignored
+  /// entirely (never even read) whenever a layer has none, which is every
+  /// document that predates this feature.
+  static Offset translateAt(
+    List<Anim> anims,
+    double scrollTime,
+    Offset fallback, [
+    double wallClockMs = 0,
+  ]) {
+    final scrollResult = _translateFrom(
+      _sorted(anims, AnimType.translate, AnimBasis.scroll),
+      scrollTime,
+      fallback,
+    );
+    final timeAnims = _sorted(anims, AnimType.translate, AnimBasis.time);
+    if (timeAnims.isEmpty) return scrollResult;
+    final timeResult = _translateFrom(timeAnims, _wrappedTime(timeAnims, wallClockMs), Offset.zero);
+    return scrollResult + timeResult;
+  }
+
+  static Offset _translateFrom(List<Anim> sortedAnims, double currentTime, Offset fallback) {
+    final (prev, curr) = _findNearest(sortedAnims, currentTime);
     if (prev == null && curr == null) return fallback;
     // TranslateAnim has no Init() override in legacy -- C#'s implicit default (0,0).
     final px = prev?.x ?? 0.0;
@@ -33,40 +62,98 @@ class KeyframeInterpolator {
 
   /// AnimType.scale. Resting default (1, 1, 0.5, 0.5) matches
   /// ScaleAnim.Init() (scaleX/Y=1) + its PivotAnim base (pivot=0.5/0.5).
-  /// Pivot is never eased -- it snaps to `curr`'s own pivot, matching
-  /// ScaleAnim.Interpolate exactly.
   static (double scaleX, double scaleY, double pivotX, double pivotY) scaleAt(
-      List<Anim> anims, double currentTime) {
-    final (prev, curr) = _findNearest(_sorted(anims, AnimType.scale), currentTime);
+    List<Anim> anims,
+    double scrollTime, [
+    double wallClockMs = 0,
+  ]) {
+    final (ssx, ssy, spx, spy, sActive) =
+        _scaleFrom(_sorted(anims, AnimType.scale, AnimBasis.scroll), scrollTime);
+    final timeAnims = _sorted(anims, AnimType.scale, AnimBasis.time);
+    if (timeAnims.isEmpty) return (ssx, ssy, spx, spy);
+    final (tsx, tsy, tpx, tpy, tActive) =
+        _scaleFrom(timeAnims, _wrappedTime(timeAnims, wallClockMs));
+    final (pivotX, pivotY) = sActive ? (spx, spy) : (tActive ? (tpx, tpy) : (spx, spy));
+    return (ssx * tsx, ssy * tsy, pivotX, pivotY);
+  }
+
+  static (double scaleX, double scaleY, double pivotX, double pivotY, bool active) _scaleFrom(
+      List<Anim> sortedAnims, double currentTime) {
+    final (prev, curr) = _findNearest(sortedAnims, currentTime);
     final psx = prev?.scaleX ?? 1.0;
     final psy = prev?.scaleY ?? 1.0;
     if (curr == null) {
-      return (psx, psy, prev?.pivotX ?? 0.5, prev?.pivotY ?? 0.5);
+      return (psx, psy, prev?.pivotX ?? 0.5, prev?.pivotY ?? 0.5, false);
     }
     final f = _easedFactor(curr, currentTime);
-    return (psx + (curr.scaleX - psx) * f, psy + (curr.scaleY - psy) * f, curr.pivotX, curr.pivotY);
+    return (
+      psx + (curr.scaleX - psx) * f,
+      psy + (curr.scaleY - psy) * f,
+      curr.pivotX,
+      curr.pivotY,
+      true,
+    );
   }
 
   /// AnimType.rotate. Resting default (0, 0.5, 0.5) -- RotateAnim itself has
   /// no Init() override (angle defaults to C#'s implicit 0), but it inherits
-  /// PivotAnim.Init()'s pivot=0.5/0.5. Pivot is never eased, same as scale.
-  static (double angle, double pivotX, double pivotY) rotateAt(List<Anim> anims, double currentTime) {
-    final (prev, curr) = _findNearest(_sorted(anims, AnimType.rotate), currentTime);
+  /// PivotAnim.Init()'s pivot=0.5/0.5.
+  static (double angle, double pivotX, double pivotY) rotateAt(
+    List<Anim> anims,
+    double scrollTime, [
+    double wallClockMs = 0,
+  ]) {
+    final (sa, spx, spy, sActive) =
+        _rotateFrom(_sorted(anims, AnimType.rotate, AnimBasis.scroll), scrollTime);
+    final timeAnims = _sorted(anims, AnimType.rotate, AnimBasis.time);
+    if (timeAnims.isEmpty) return (sa, spx, spy);
+    final (ta, tpx, tpy, tActive) = _rotateFrom(timeAnims, _wrappedTime(timeAnims, wallClockMs));
+    final (pivotX, pivotY) = sActive ? (spx, spy) : (tActive ? (tpx, tpy) : (spx, spy));
+    return (sa + ta, pivotX, pivotY);
+  }
+
+  static (double angle, double pivotX, double pivotY, bool active) _rotateFrom(
+      List<Anim> sortedAnims, double currentTime) {
+    final (prev, curr) = _findNearest(sortedAnims, currentTime);
     final pa = prev?.angle ?? 0.0;
     if (curr == null) {
-      return (pa, prev?.pivotX ?? 0.5, prev?.pivotY ?? 0.5);
+      return (pa, prev?.pivotX ?? 0.5, prev?.pivotY ?? 0.5, false);
     }
     final f = _easedFactor(curr, currentTime);
-    return (pa + (curr.angle - pa) * f, curr.pivotX, curr.pivotY);
+    return (pa + (curr.angle - pa) * f, curr.pivotX, curr.pivotY, true);
   }
 
   /// AnimType.alpha. Resting default 1.0 matches AlphaAnim.Init().
-  static double alphaAt(List<Anim> anims, double currentTime) {
-    final (prev, curr) = _findNearest(_sorted(anims, AnimType.alpha), currentTime);
+  static double alphaAt(List<Anim> anims, double scrollTime, [double wallClockMs = 0]) {
+    final scrollResult = _alphaFrom(_sorted(anims, AnimType.alpha, AnimBasis.scroll), scrollTime);
+    final timeAnims = _sorted(anims, AnimType.alpha, AnimBasis.time);
+    if (timeAnims.isEmpty) return scrollResult;
+    final timeResult = _alphaFrom(timeAnims, _wrappedTime(timeAnims, wallClockMs));
+    return scrollResult * timeResult;
+  }
+
+  static double _alphaFrom(List<Anim> sortedAnims, double currentTime) {
+    final (prev, curr) = _findNearest(sortedAnims, currentTime);
     final pAlpha = prev?.alpha ?? 1.0;
     if (curr == null) return pAlpha;
     final f = _easedFactor(curr, currentTime);
     return pAlpha + (curr.alpha - pAlpha) * f;
+  }
+
+  /// tdd-dot-comics-format Plan Task 5.4: folds continuous [wallClockMs]
+  /// into a single loop cycle when at least one of [timeAnims] has `loop ==
+  /// true` (Task 5.1's resolved default) -- the cycle length is the largest
+  /// `end` among them, since anims of one type on one layer share one
+  /// timeline conceptually, mirroring how the scroll dimension already
+  /// treats same-type anims as one sorted sequence rather than
+  /// independently. A non-looping anim past its own `end` simply holds at
+  /// its last value via the existing `_findNearest`/`curr == null` path --
+  /// no special-casing needed for that half.
+  static double _wrappedTime(List<Anim> timeAnims, double wallClockMs) {
+    if (!timeAnims.any((a) => a.loop)) return wallClockMs;
+    final totalDuration = timeAnims.fold<int>(0, (max, a) => a.end > max ? a.end : max);
+    if (totalDuration <= 0) return wallClockMs;
+    return wallClockMs % totalDuration;
   }
 
   /// Sorted by `start`, with ties broken by original list order -- matching
@@ -78,10 +165,10 @@ class KeyframeInterpolator {
   /// currentTime=0 -- Dart's `List.sort` does not document itself as stable,
   /// so relying on it directly here would risk a real, silent divergence
   /// from legacy for exactly this common case.
-  static List<Anim> _sorted(List<Anim> anims, AnimType type) {
+  static List<Anim> _sorted(List<Anim> anims, AnimType type, AnimBasis basis) {
     final indexed = <MapEntry<int, Anim>>[
       for (var i = 0; i < anims.length; i++)
-        if (anims[i].type == type) MapEntry(i, anims[i]),
+        if (anims[i].type == type && anims[i].basis == basis) MapEntry(i, anims[i]),
     ]..sort((a, b) {
         final byStart = a.value.start.compareTo(b.value.start);
         return byStart != 0 ? byStart : a.key.compareTo(b.key);

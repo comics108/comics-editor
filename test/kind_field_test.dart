@@ -83,7 +83,11 @@ void main() {
     expect(find.text('Art'), findsWidgets);
     expect(find.text('Bln'), findsNothing);
 
-    await tester.tap(find.byType(DropdownButton<String?>));
+    // tdd-dot-comics-format, Plan Task 4.3: the MASK section added its own
+    // DropdownButton<String?>, so this must target the first one (KIND
+    // renders before MASK in _LayerEditor's list) rather than "the"
+    // DropdownButton.
+    await tester.tap(find.byType(DropdownButton<String?>).first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Balloon').last);
     await tester.pumpAndSettle();

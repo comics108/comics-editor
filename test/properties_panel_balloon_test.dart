@@ -66,7 +66,10 @@ void main() {
     expect(find.text('ARTWORK · PER LANGUAGE'), findsOneWidget);
 
     await tester.runAsync(() async {
-      await tester.tap(find.byType(DropdownButton<String?>));
+      // tdd-dot-comics-format, Plan Task 4.3: the MASK section added its
+      // own DropdownButton<String?> -- target the first one (KIND, which
+      // renders before MASK) rather than "the" DropdownButton.
+      await tester.tap(find.byType(DropdownButton<String?>).first);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Balloon').last);
       await Future<void>.delayed(const Duration(milliseconds: 100));

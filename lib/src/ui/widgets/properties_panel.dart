@@ -324,6 +324,8 @@ class _LayerEditor extends StatelessWidget {
               else
                 _ArtworkSection(c, l),
               const SizedBox(height: 14),
+              _MaskSection(c, l),
+              const SizedBox(height: 14),
               InkWell(
                 onTap: c.togglePreview,
                 child: Row(
@@ -544,6 +546,78 @@ class _AnimSection extends StatelessWidget {
   }
 }
 
+/// tdd-dot-comics-format Plan Task 5.5, `04-visual.md` Screen 5: extends
+/// each Anim editor (not the `+ Translate`/etc. chips themselves) with a
+/// Scroll/Time radio. Defaults to Scroll position for every anim -- matches
+/// `Anim.basis`'s own default, zero behavior change unless the author
+/// explicitly switches it. Not shown for Sound anims -- this dimension was
+/// motivated by visual motion (a swinging leg), and sound playback already
+/// has its own real wall-clock-vs-scroll gating mechanism
+/// (`EditorController._onSoundTick`), unrelated to this feature.
+class _DrivenByField extends StatelessWidget {
+  const _DrivenByField(this.c, this.a);
+  final EditorController c;
+  final Anim a;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'DRIVEN BY',
+          style: TextStyle(fontSize: 12, color: Hs.textSecondary),
+        ),
+        const SizedBox(height: 4),
+        _DrivenByOption(
+          label: 'Scroll position',
+          selected: a.basis == AnimBasis.scroll,
+          onTap: () => c.editAnim((animation) => animation.basis = AnimBasis.scroll),
+        ),
+        _DrivenByOption(
+          label: 'Time (wall-clock)',
+          selected: a.basis == AnimBasis.time,
+          onTap: () => c.editAnim((animation) => animation.basis = AnimBasis.time),
+        ),
+      ],
+    );
+  }
+}
+
+class _DrivenByOption extends StatelessWidget {
+  const _DrivenByOption({required this.label, required this.selected, required this.onTap});
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Row(
+          children: [
+            Icon(
+              selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+              size: 16,
+              color: selected ? Hs.blue500 : Hs.textSecondary,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(fontSize: 14),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _AnimParams extends StatelessWidget {
   const _AnimParams(this.c, this.a);
   final EditorController c;
@@ -591,20 +665,26 @@ class _AnimParams extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
+          if (a.type != AnimType.sound) _DrivenByField(c, a),
+          if (a.type != AnimType.sound) const SizedBox(height: 12),
           _field(
-            'Start',
+            a.basis == AnimBasis.time ? 'Start (ms)' : 'Start',
             a.start,
             0,
-            c.doc!.height > 600 ? c.doc!.height.toDouble() : 600,
+            a.basis == AnimBasis.time
+                ? 60000
+                : (c.doc!.height > 600 ? c.doc!.height.toDouble() : 600),
             1,
             true,
             (animation, value) => animation.start = value.toInt(),
           ),
           _field(
-            'End',
+            a.basis == AnimBasis.time ? 'End (ms)' : 'End',
             a.end,
             0,
-            c.doc!.height > 600 ? c.doc!.height.toDouble() : 600,
+            a.basis == AnimBasis.time
+                ? 60000
+                : (c.doc!.height > 600 ? c.doc!.height.toDouble() : 600),
             1,
             true,
             (animation, value) => animation.end = value.toInt(),
@@ -878,6 +958,142 @@ class _KindField extends StatelessWidget {
               ],
               onChanged: onChanged,
             ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// tdd-dot-comics-format Plan Task 4.3, `04-visual.md` Screen 4: clips this
+/// layer's own content to a shape. Only "rect" has real editing UI here --
+/// all 6 real masks found so far are static rectangles
+/// (`03-specifications.md`'s Masks & Solid Colors section); "polygon"/
+/// "mask" (bitmap) are shown as locked options rather than half-built
+/// editors (no point-editor or file-picker exists for them yet).
+class _MaskSection extends StatelessWidget {
+  const _MaskSection(this.c, this.layer);
+  final EditorController c;
+  final EditorLayer layer;
+
+  @override
+  Widget build(BuildContext context) {
+    final mask = layer.mask;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('MASK', style: kSectionLabel),
+        const SizedBox(height: 4),
+        Container(
+          height: 38,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            border: Border.all(color: Hs.cloud200, width: 2),
+            borderRadius: BorderRadius.circular(Hs.rChip),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String?>(
+              value: mask?.shape,
+              isExpanded: true,
+              isDense: true,
+              icon: const Icon(Icons.expand_more, size: 18, color: Hs.textSecondary),
+              style: const TextStyle(fontSize: 14, color: Hs.textBody),
+              items: const [
+                DropdownMenuItem(value: null, child: Text('None')),
+                DropdownMenuItem(value: 'rect', child: Text('Rectangle')),
+                DropdownMenuItem(
+                  value: 'polygon',
+                  enabled: false,
+                  child: Text('Polygon (not yet available)'),
+                ),
+                DropdownMenuItem(
+                  value: 'mask',
+                  enabled: false,
+                  child: Text('Bitmap mask (not yet available)'),
+                ),
+              ],
+              onChanged: c.setLayerMaskShape,
+            ),
+          ),
+        ),
+        if (mask?.shape == 'rect' && mask?.rect != null) ...[
+          const SizedBox(height: 10),
+          _MaskRectFields(c, mask!.rect!),
+        ],
+      ],
+    );
+  }
+}
+
+class _MaskRectFields extends StatelessWidget {
+  const _MaskRectFields(this.c, this.rect);
+  final EditorController c;
+  final Rect rect;
+
+  Rect _withX(num v) => Rect.fromLTWH(v.toDouble(), rect.top, rect.width, rect.height);
+  Rect _withY(num v) => Rect.fromLTWH(rect.left, v.toDouble(), rect.width, rect.height);
+  Rect _withW(num v) => Rect.fromLTWH(rect.left, rect.top, v.toDouble(), rect.height);
+  Rect _withH(num v) => Rect.fromLTWH(rect.left, rect.top, rect.width, v.toDouble());
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: NumericPropertyControl(
+            label: 'X',
+            value: rect.left,
+            min: -100000,
+            max: 100000,
+            step: 1,
+            onGestureStart: c.beginGestureHistory,
+            onPreview: (v) => c.previewLayerMaskRect(_withX(v)),
+            onGestureEnd: c.commitGestureHistory,
+            onCommit: (v) => c.setLayerMaskRect(_withX(v)),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: NumericPropertyControl(
+            label: 'Y',
+            value: rect.top,
+            min: -100000,
+            max: 100000,
+            step: 1,
+            onGestureStart: c.beginGestureHistory,
+            onPreview: (v) => c.previewLayerMaskRect(_withY(v)),
+            onGestureEnd: c.commitGestureHistory,
+            onCommit: (v) => c.setLayerMaskRect(_withY(v)),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: NumericPropertyControl(
+            label: 'W',
+            value: rect.width,
+            min: 0,
+            max: 100000,
+            step: 1,
+            isValid: (v) => v >= 0,
+            onGestureStart: c.beginGestureHistory,
+            onPreview: (v) => c.previewLayerMaskRect(_withW(v)),
+            onGestureEnd: c.commitGestureHistory,
+            onCommit: (v) => c.setLayerMaskRect(_withW(v)),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: NumericPropertyControl(
+            label: 'H',
+            value: rect.height,
+            min: 0,
+            max: 100000,
+            step: 1,
+            isValid: (v) => v >= 0,
+            onGestureStart: c.beginGestureHistory,
+            onPreview: (v) => c.previewLayerMaskRect(_withH(v)),
+            onGestureEnd: c.commitGestureHistory,
+            onCommit: (v) => c.setLayerMaskRect(_withH(v)),
           ),
         ),
       ],

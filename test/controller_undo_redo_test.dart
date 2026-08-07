@@ -19,6 +19,26 @@ void main() {
       expect(c.canRedo, isFalse);
     });
 
+    // tdd-dot-comics-format, Plan Task 3.5: an organizational anchor is a
+    // Kind-marked layer with no image content, distinct from addLayer's
+    // real-artwork layer.
+    test('addOrganizationalLayer creates a kind-marked layer with no images', () {
+      c.addOrganizationalLayer();
+      expect(c.doc!.layers, hasLength(1));
+      expect(c.doc!.layers[0].kind, EditorLayer.organizationalKind);
+      expect(c.doc!.layers[0].images, isEmpty);
+    });
+
+    // tdd-dot-comics-format, Plan Task 4.3: a solid-color layer's images
+    // stay populated (never cleared) -- solidColor takes precedence for
+    // rendering, so nothing is lost if it's cleared later.
+    test('addSolidColorLayer creates a layer with solidColor set, images untouched', () {
+      c.addSolidColorLayer('#ffffff');
+      expect(c.doc!.layers, hasLength(1));
+      expect(c.doc!.layers[0].solidColor, '#ffffff');
+      expect(c.doc!.layers[0].images, isNotEmpty);
+    });
+
     test('addLayer is undoable/redoable', () {
       expect(c.doc!.layers, isEmpty);
 
@@ -73,6 +93,39 @@ void main() {
 
       c.undo(); // undoes deleteSelected
       expect(c.doc!.layers, hasLength(1));
+    });
+
+    // tdd-dot-comics-format, Plan Task 1.1/3.1: a snapshot (undo/redo) must
+    // preserve layer identity -- otherwise a parentId reference set before
+    // an undo would silently point at nothing afterward.
+    test('layer id survives undo/redo (identity, not a new layer)', () {
+      c.addLayer();
+      final idBefore = c.doc!.layers[0].id;
+
+      c.addLayer();
+      c.undo(); // back to 1 layer
+      expect(c.doc!.layers[0].id, idBefore);
+
+      c.redo(); // forward to 2 layers again
+      expect(c.doc!.layers[0].id, idBefore);
+    });
+
+    // tdd-dot-comics-format, Plan Task 3.1, orphan policy: deleting a parent
+    // clears the child's parentId and leaves its position untouched -- no
+    // cascade delete, no re-computation.
+    test('deleting a parent layer clears the child\'s parentId, keeps its position', () {
+      c.addLayer(); // parent, index 0
+      c.addLayer(); // child, index 1
+      final parentId = c.doc!.layers[0].id;
+      final childTranslateBefore = c.doc!.layers[1].translate;
+      c.doc!.layers[1].parentId = parentId;
+
+      c.selectLayer(0);
+      c.deleteSelected();
+
+      expect(c.doc!.layers, hasLength(1));
+      expect(c.doc!.layers[0].parentId, isNull);
+      expect(c.doc!.layers[0].translate, childTranslateBefore);
     });
 
     test('moveLayer no-op at boundary does not create a history entry', () {

@@ -15,6 +15,10 @@ bool get _isMobile => Platform.isIOS || Platform.isAndroid;
 Future<void> showNewDialog(BuildContext context) async {
   final c = EditorScope.of(context);
   DocType choice = DocType.comics;
+  // tdd-dot-comics-format Plan Task 2.3: independent of `choice` and of
+  // each other -- neither is inferred from the other (03-specifications.md).
+  ScrollType scrollType = ScrollType.vertical;
+  PreferredOrientation preferredOrientation = PreferredOrientation.portrait;
   await showDialog<void>(
     context: context,
     builder: (ctx) => StatefulBuilder(
@@ -31,7 +35,11 @@ Future<void> showNewDialog(BuildContext context) async {
           HsButton(
             'Create',
             onTap: () {
-              c.newDoc(choice);
+              c.newDoc(
+                choice,
+                scrollType: scrollType,
+                preferredOrientation: preferredOrientation,
+              );
               Navigator.pop(ctx);
             },
           ),
@@ -47,17 +55,30 @@ Future<void> showNewDialog(BuildContext context) async {
                   _TypeCard(
                     title: 'Vertical-scroll comic strip',
                     subtitle: 'Default · infinite vertical reading flow.',
-                    selected: choice == DocType.comics,
+                    selected: choice == DocType.comics &&
+                        scrollType == ScrollType.vertical,
                     preview: _stripPreview(),
-                    onTap: () => setState(() => choice = DocType.comics),
+                    onTap: () => setState(() {
+                      choice = DocType.comics;
+                      scrollType = ScrollType.vertical;
+                    }),
                   ),
                   _TypeCard(
                     title: 'Horizontal-scroll comic strip',
-                    subtitle: 'Planned for a future version.',
-                    selected: false,
-                    enabled: false,
+                    // tdd-dot-comics-format Plan Task 2.3: sets the
+                    // document's scrollType for real now -- the canvas/
+                    // viewer playback direction itself is a separate,
+                    // still-vertical-only capability, not part of this
+                    // schema/dialog wiring.
+                    subtitle: 'Sets the document\'s scroll axis; canvas/viewer '
+                        'playback is still vertical-only.',
+                    selected: choice == DocType.comics &&
+                        scrollType == ScrollType.horizontal,
                     preview: _stripPreview(),
-                    onTap: () {},
+                    onTap: () => setState(() {
+                      choice = DocType.comics;
+                      scrollType = ScrollType.horizontal;
+                    }),
                   ),
                   _TypeCard(
                     title: 'Puzzle',
@@ -97,17 +118,37 @@ Future<void> showNewDialog(BuildContext context) async {
                   child: _OptionTile(
                     icon: Icons.stay_current_portrait,
                     label: 'Portrait',
-                    selected: true,
+                    selected: preferredOrientation == PreferredOrientation.portrait,
                     enabled: true,
+                    onTap: () => setState(
+                      () => preferredOrientation = PreferredOrientation.portrait,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 10),
-                const Expanded(
+                Expanded(
                   child: _OptionTile(
                     icon: Icons.stay_current_landscape,
                     label: 'Landscape',
-                    selected: false,
-                    enabled: false,
+                    selected: preferredOrientation == PreferredOrientation.landscape,
+                    enabled: true,
+                    onTap: () => setState(
+                      () => preferredOrientation = PreferredOrientation.landscape,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                // tdd-dot-comics-format Plan Task 2.4: the real dialog only
+                // ever drew 2 tiles -- this third one didn't exist before.
+                Expanded(
+                  child: _OptionTile(
+                    icon: Icons.screen_rotation_alt_outlined,
+                    label: 'Auto',
+                    selected: preferredOrientation == PreferredOrientation.auto,
+                    enabled: true,
+                    onTap: () => setState(
+                      () => preferredOrientation = PreferredOrientation.auto,
+                    ),
                   ),
                 ),
               ],
@@ -278,6 +319,101 @@ Future<void> showDuplicateError(BuildContext context) async {
   );
 }
 
+// tdd-dot-comics-format Plan Task 4.3, `04-visual.md` Screen 4: "a standard
+// color picker, no new component needed" -- no color-picker package exists
+// in this project (checked pubspec.yaml/pubspec.lock), and adding a new
+// dependency for one dialog is a bigger call than this task warrants. A
+// small preset-swatch grid + hex field is a complete, real picker without
+// one -- no half-built "type raw hex only" fallback.
+const List<Color> _solidColorPresets = [
+  Hs.white,
+  Color(0xFF000000),
+  Hs.blue500,
+  Hs.coral500,
+  Hs.teal500,
+  Hs.amber500,
+  Hs.violet500,
+  Hs.indigo500,
+];
+
+String colorToHex(Color color) =>
+    '#${((color.a * 255).round() == 255 ? '' : (color.a * 255).round().toRadixString(16).padLeft(2, '0'))}'
+    '${(color.r * 255).round().toRadixString(16).padLeft(2, '0')}'
+    '${(color.g * 255).round().toRadixString(16).padLeft(2, '0')}'
+    '${(color.b * 255).round().toRadixString(16).padLeft(2, '0')}';
+
+Color? colorFromHex(String hex) {
+  var value = hex.trim();
+  if (value.startsWith('#')) value = value.substring(1);
+  if (value.length == 6) value = 'FF$value';
+  if (value.length != 8) return null;
+  final parsed = int.tryParse(value, radix: 16);
+  return parsed == null ? null : Color(parsed);
+}
+
+/// Returns the picked color, or null if cancelled.
+Future<Color?> showSolidColorPicker(BuildContext context) async {
+  Color picked = Hs.white;
+  final hexController = TextEditingController(text: colorToHex(picked));
+  return showDialog<Color>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setState) => _DialogShell(
+        title: 'Solid color layer',
+        width: 380,
+        actions: [
+          HsButton(
+            'Cancel',
+            variant: HsVariant.cancel,
+            onTap: () => Navigator.pop(ctx),
+          ),
+          const SizedBox(width: 10),
+          HsButton('Create', onTap: () => Navigator.pop(ctx, picked)),
+        ],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final swatch in _solidColorPresets)
+                  InkWell(
+                    onTap: () => setState(() {
+                      picked = swatch;
+                      hexController.text = colorToHex(picked);
+                    }),
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: swatch,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: swatch == picked ? Hs.blue500 : Hs.divider,
+                          width: swatch == picked ? 2 : 1,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: hexController,
+              decoration: const InputDecoration(labelText: 'Hex color'),
+              onChanged: (value) {
+                final parsed = colorFromHex(value);
+                if (parsed != null) setState(() => picked = parsed);
+              },
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 // ---------------- shared shell ----------------
 
 class _DialogShell extends StatelessWidget {
@@ -432,11 +568,16 @@ class _OptionTile extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.enabled,
+    this.onTap,
   });
   final IconData icon;
   final String label;
   final bool selected;
   final bool enabled;
+  // tdd-dot-comics-format Plan Task 2.3: was permanently non-interactive
+  // (Portrait had no way to toggle since Landscape was disabled) -- now a
+  // real tap target when the caller wants one.
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -446,21 +587,25 @@ class _OptionTile extends StatelessWidget {
       button: true,
       child: Opacity(
         opacity: enabled ? 1 : .5,
-        child: Container(
-          height: 54,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          decoration: BoxDecoration(
-            color: selected ? Hs.blue100 : Hs.white,
-            border: Border.all(color: selected ? Hs.blue500 : Hs.divider),
-            borderRadius: BorderRadius.circular(Hs.rChip),
-          ),
-          child: Row(
-            children: [
-              Icon(icon, color: selected ? Hs.blue500 : Hs.textSecondary),
-              const SizedBox(width: 10),
-              Expanded(child: Text(label)),
-              if (!enabled) const Icon(Icons.lock_outline, size: 17),
-            ],
+        child: InkWell(
+          onTap: enabled ? onTap : null,
+          borderRadius: BorderRadius.circular(Hs.rChip),
+          child: Container(
+            height: 54,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: selected ? Hs.blue100 : Hs.white,
+              border: Border.all(color: selected ? Hs.blue500 : Hs.divider),
+              borderRadius: BorderRadius.circular(Hs.rChip),
+            ),
+            child: Row(
+              children: [
+                Icon(icon, color: selected ? Hs.blue500 : Hs.textSecondary),
+                const SizedBox(width: 10),
+                Expanded(child: Text(label)),
+                if (!enabled) const Icon(Icons.lock_outline, size: 17),
+              ],
+            ),
           ),
         ),
       ),

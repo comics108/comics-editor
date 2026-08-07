@@ -62,6 +62,78 @@ double _asDouble(dynamic value, [double fallback = 0]) =>
 int _asInt(dynamic value, [int fallback = 0]) =>
     value is num ? value.round() : fallback;
 
+// tdd-dot-comics-format Plan Task 2.2: absent/unrecognized value -> the
+// backward-compat default (vertical/portrait), matching every existing
+// file's implicit, only-ever-exercised behavior.
+ScrollType _asScrollType(dynamic value) => switch (value) {
+  'horizontal' => ScrollType.horizontal,
+  _ => ScrollType.vertical,
+};
+
+String _scrollTypeToJson(ScrollType value) => switch (value) {
+  ScrollType.vertical => 'vertical',
+  ScrollType.horizontal => 'horizontal',
+};
+
+PreferredOrientation _asPreferredOrientation(dynamic value) => switch (value) {
+  'landscape' => PreferredOrientation.landscape,
+  'auto' => PreferredOrientation.auto,
+  _ => PreferredOrientation.portrait,
+};
+
+String _preferredOrientationToJson(PreferredOrientation value) => switch (value) {
+  PreferredOrientation.portrait => 'portrait',
+  PreferredOrientation.landscape => 'landscape',
+  PreferredOrientation.auto => 'auto',
+};
+
+// tdd-dot-comics-format Plan Task 4.2, per 03-specifications.md's Masks &
+// Solid Colors section: same shape union as TextRegion ("rect"/"polygon"/
+// "mask"), only "rect" is exercised by any real content found so far.
+LayerMask? _maskFromJson(dynamic value) {
+  if (value is! Map) return null;
+  final shape = value['shape'] as String?;
+  if (shape == null) return null;
+  Rect? rect;
+  final rectJson = value['rect'] as Map?;
+  if (rectJson != null) {
+    rect = Rect.fromLTWH(
+      _asDouble(rectJson['x']),
+      _asDouble(rectJson['y']),
+      _asDouble(rectJson['w']),
+      _asDouble(rectJson['h']),
+    );
+  }
+  List<Offset>? points;
+  final pointsJson = value['points'] as List?;
+  if (pointsJson != null) {
+    points = [
+      for (final p in pointsJson)
+        Offset(_asDouble((p as Map)['x']), _asDouble(p['y'])),
+    ];
+  }
+  return LayerMask(
+    shape: shape,
+    rect: rect,
+    points: points,
+    maskFile: value['maskFile'] as String?,
+  );
+}
+
+Map<String, dynamic> _maskToJson(LayerMask mask) {
+  final json = <String, dynamic>{'shape': mask.shape};
+  final rect = mask.rect;
+  if (rect != null) {
+    json['rect'] = {'x': rect.left, 'y': rect.top, 'w': rect.width, 'h': rect.height};
+  }
+  final points = mask.points;
+  if (points != null) {
+    json['points'] = [for (final p in points) {'x': p.dx, 'y': p.dy}];
+  }
+  if (mask.maskFile != null) json['maskFile'] = mask.maskFile;
+  return json;
+}
+
 Anim _animFromJson(Map<String, dynamic> json, {AnimType fallback = AnimType.translate}) {
   final type = _animTypeFromDollarType(json[r'$type'] as String?) ?? fallback;
   final anim = Anim(type,
@@ -74,6 +146,11 @@ Anim _animFromJson(Map<String, dynamic> json, {AnimType fallback = AnimType.tran
   anim.pivotX = _asDouble(json['pivotX']);
   anim.pivotY = _asDouble(json['pivotY']);
   anim.alpha = _asDouble(json['alpha'], 1);
+  // tdd-dot-comics-format Plan Task 5.3: genuinely new keys, not part of the
+  // legacy C# Anim schema -- absent -> scroll/true, matching every existing
+  // anim's implicit, only-ever-exercised behavior.
+  anim.basis = json['basis'] == 'time' ? AnimBasis.time : AnimBasis.scroll;
+  anim.loop = json['loop'] as bool? ?? true;
   return anim;
 }
 
@@ -142,6 +219,12 @@ Map<String, dynamic> _animToJson(Anim anim) {
     case AnimType.sound:
       break;
   }
+  // tdd-dot-comics-format Plan Task 5.3: omit-if-default (same pattern as
+  // kind/style/parentId), not the legacy DefaultValueHandling.Ignore-via-
+  // `put()` pattern above, since these keys never existed in the legacy C#
+  // schema at all -- there's no matching C# default to mirror.
+  if (anim.basis != AnimBasis.scroll) json['basis'] = 'time';
+  if (anim.basis == AnimBasis.time && !anim.loop) json['loop'] = false;
   return json;
 }
 
@@ -154,7 +237,9 @@ CoreDocument comicsFromCore(Map<String, dynamic> raw, String path, {String? temp
     type: isPuzzle ? DocType.puzzle : DocType.comics,
     width: _asInt(raw['width'], 1080),
     height: _asInt(raw['height'], 2160),
-  );
+  )
+    ..scrollType = _asScrollType(raw['scrollType'])
+    ..preferredOrientation = _asPreferredOrientation(raw['preferredOrientation']);
 
   for (final layerJson in (raw['layers'] as List? ?? const [])) {
     final layer = layerJson as Map<String, dynamic>;
@@ -162,10 +247,14 @@ CoreDocument comicsFromCore(Map<String, dynamic> raw, String path, {String? temp
     final firstFile = images.isNotEmpty
         ? ((images.first as Map<String, dynamic>)['file'] as String? ?? '')
         : '';
-    final uiLayer = EditorLayer(firstFile.isEmpty ? 'layer' : firstFile)
+    final uiLayer = EditorLayer(firstFile.isEmpty ? 'layer' : firstFile,
+        id: layer['id'] as String?)
       ..preview = layer['preview'] == true
       ..kind = layer['kind'] as String?
-      ..style = layer['style'] as String?;
+      ..style = layer['style'] as String?
+      ..parentId = layer['parentId'] as String?
+      ..solidColor = layer['solidColor'] as String?
+      ..mask = _maskFromJson(layer['mask']);
     final translations = layer['translations'] as Map?;
     if (translations != null) {
       translations.forEach((key, value) {
@@ -264,6 +353,11 @@ Map<String, dynamic> comicsToCore(CoreDocument document) {
   final raw = Map<String, dynamic>.from(document.raw);
   raw['width'] = doc.width;
   raw['height'] = doc.height;
+  // Always present once assigned (an enum field is never "unset" the way a
+  // nullable string is) -- same treatment as width/height and Layer.Id, not
+  // the omit-if-default pattern used for kind/style/parentId.
+  raw['scrollType'] = _scrollTypeToJson(doc.scrollType);
+  raw['preferredOrientation'] = _preferredOrientationToJson(doc.preferredOrientation);
 
   final rawLayers = (document.raw['layers'] as List? ?? const []);
   raw['layers'] = [
@@ -290,6 +384,11 @@ Map<String, dynamic> comicsToCore(CoreDocument document) {
 }
 
 Map<String, dynamic> _mergeLayer(EditorLayer layer, Map<String, dynamic> raw) {
+  // Always present once assigned (never null/empty, unlike kind/style) --
+  // old files simply gain this key the first time they're saved after
+  // this version starts reading them.
+  raw['id'] = layer.id;
+
   if (layer.preview) {
     raw['preview'] = true;
   } else {
@@ -308,6 +407,22 @@ Map<String, dynamic> _mergeLayer(EditorLayer layer, Map<String, dynamic> raw) {
     raw['style'] = layer.style;
   } else {
     raw.remove('style');
+  }
+  if (layer.parentId != null && layer.parentId!.isNotEmpty) {
+    raw['parentId'] = layer.parentId;
+  } else {
+    raw.remove('parentId');
+  }
+  if (layer.solidColor != null && layer.solidColor!.isNotEmpty) {
+    raw['solidColor'] = layer.solidColor;
+  } else {
+    raw.remove('solidColor');
+  }
+  final mask = layer.mask;
+  if (mask != null) {
+    raw['mask'] = _maskToJson(mask);
+  } else {
+    raw.remove('mask');
   }
   if (layer.translations.isNotEmpty) {
     raw['translations'] = Map<String, String>.from(layer.translations);

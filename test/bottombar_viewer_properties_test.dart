@@ -242,7 +242,12 @@ void main() {
     expect(commits, [-7.5]);
   });
 
-  testWidgets('new document defaults and future options stay explicit', (
+  // tdd-dot-comics-format, Plan Task 2.3/2.4: this test used to document the
+  // dialog's tiles as permanently disabled/cosmetic (2 lock icons, tapping
+  // Horizontal-scroll was a no-op). That's precisely what this phase wired
+  // for real -- updated to assert the new, real behavior instead of the old
+  // "not implemented yet" one.
+  testWidgets('new document dialog options are real and wired to the created doc', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(900, 900);
@@ -268,11 +273,17 @@ void main() {
     expect(find.text('Horizontal-scroll comic strip'), findsOneWidget);
     expect(find.text('Portrait'), findsOneWidget);
     expect(find.text('Landscape'), findsOneWidget);
-    expect(find.byIcon(Icons.lock_outline), findsNWidgets(2));
+    expect(find.text('Auto'), findsOneWidget);
+    // Horizontal-scroll and Landscape were the only 2 locked tiles; both
+    // are real, tappable options now.
+    expect(find.byIcon(Icons.lock_outline), findsNothing);
 
     await tester.tap(find.text('Horizontal-scroll comic strip'));
+    await tester.tap(find.text('Landscape'));
     await tester.tap(find.text('Create'));
     await tester.pumpAndSettle();
     expect(controller.doc?.type, DocType.comics);
+    expect(controller.doc?.scrollType, ScrollType.horizontal);
+    expect(controller.doc?.preferredOrientation, PreferredOrientation.landscape);
   });
 }

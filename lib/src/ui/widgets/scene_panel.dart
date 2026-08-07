@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../controller.dart';
+import '../models.dart';
 import '../responsive.dart';
 import '../theme.dart';
 import 'common.dart';
+import 'dialogs.dart' show colorFromHex, colorToHex, showSolidColorPicker;
 
 /// Left "Scene" column: canvas settings + Layers + Sounds
 /// (LayersListControl + SoundsListControl + SettingsControl in the original).
@@ -109,10 +111,15 @@ class _LayersSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final layers = c.doc!.layers;
+    // tdd-dot-comics-format Plan Task 3.3: render in ParentId hierarchy
+    // order (depth-first, each parent immediately followed by its own
+    // children) rather than raw document order -- identical to today's flat
+    // order whenever no layer has a parentId, by construction.
+    final order = c.hierarchicalLayerOrder(layers);
     return Column(
       children: [
         _SectionHeader('LAYERS', [
-          HsIconButton(Icons.add, tooltip: 'Add', onTap: c.addLayer),
+          _AddLayerMenuButton(c),
           const SizedBox(width: 6),
           HsIconButton(
             Icons.arrow_upward,
@@ -138,8 +145,11 @@ class _LayersSection extends StatelessWidget {
               ? const _Empty('No layers yet')
               : ListView.builder(
                   padding: EdgeInsets.zero,
-                  itemCount: layers.length,
-                  itemBuilder: (_, i) => _LayerRow(c, i),
+                  itemCount: order.length,
+                  itemBuilder: (_, row) {
+                    final (index, depth) = order[row];
+                    return _LayerRow(c, index, depth);
+                  },
                 ),
         ),
       ],
@@ -147,60 +157,249 @@ class _LayersSection extends StatelessWidget {
   }
 }
 
-class _LayerRow extends StatelessWidget {
-  const _LayerRow(this.c, this.i);
+enum _AddLayerChoice { image, organizational, solidColor }
+
+/// tdd-dot-comics-format Plan Task 3.5/4.3, `04-visual.md` Screens 2/4: the
+/// `[+]` used to be a single-action icon (`c.addLayer`, no choice) -- now a
+/// small menu covering every new layer-creation path this flow added.
+class _AddLayerMenuButton extends StatelessWidget {
+  const _AddLayerMenuButton(this.c);
   final EditorController c;
-  final int i;
+
+  Future<void> _onSelected(BuildContext context, _AddLayerChoice choice) async {
+    switch (choice) {
+      case _AddLayerChoice.image:
+        c.addLayer();
+      case _AddLayerChoice.organizational:
+        c.addOrganizationalLayer();
+      case _AddLayerChoice.solidColor:
+        final picked = await showSolidColorPicker(context);
+        if (picked != null) c.addSolidColorLayer(colorToHex(picked));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final l = c.doc!.layers[i];
+    return PopupMenuButton<_AddLayerChoice>(
+      tooltip: 'Add',
+      onSelected: (choice) => _onSelected(context, choice),
+      itemBuilder: (_) => const [
+        PopupMenuItem(value: _AddLayerChoice.image, child: Text('Image layer')),
+        PopupMenuItem(
+          value: _AddLayerChoice.organizational,
+          child: Text('Organizational anchor'),
+        ),
+        PopupMenuItem(
+          value: _AddLayerChoice.solidColor,
+          child: Text('Solid color layer'),
+        ),
+      ],
+      child: Container(
+        width: 30,
+        height: 30,
+        decoration: BoxDecoration(
+          color: Hs.white,
+          border: Border.all(color: Hs.cloud200),
+          borderRadius: BorderRadius.circular(Hs.rChip),
+        ),
+        child: Icon(Icons.add, size: 30 * .48, color: Hs.primary),
+      ),
+    );
+  }
+}
+
+/// `04-visual.md` Screen 2 called for a dashed border; stock `Border` has no
+/// dashed style (would need a custom painter for that alone) -- a solid
+/// muted border reads the same "not real artwork" signal without one.
+class _OrganizationalPlaceholder extends StatelessWidget {
+  const _OrganizationalPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 34,
+      height: 34,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: Hs.gray400),
+      ),
+      child: Icon(Icons.account_tree_outlined, size: 16, color: Hs.gray400),
+    );
+  }
+}
+
+/// `04-visual.md` Screen 4: a solid-color layer's swatch shows the actual
+/// flat fill color -- distinct from [HatchSwatch]'s diagonal-stripe "no
+/// artwork yet" placeholder, since the color *is* this layer's real content.
+class _SolidColorSwatch extends StatelessWidget {
+  const _SolidColorSwatch(this.color);
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 34,
+      height: 34,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: Hs.gray200),
+      ),
+    );
+  }
+}
+
+class _LayerRow extends StatelessWidget {
+  const _LayerRow(this.c, this.i, this.depth);
+  final EditorController c;
+  final int i;
+  final int depth;
+
+  /// tdd-dot-comics-format Plan Task 3.3: right-click (desktop) or
+  /// long-press (touch) opens "Set parent.../Clear parent" -- distinct from
+  /// the plain tap, which selects the layer as it always has.
+  Future<void> _showContextMenu(BuildContext context, Offset globalPosition) async {
+    final layers = c.doc!.layers;
+    final layer = layers[i];
+    final position = RelativeRect.fromLTRB(
+      globalPosition.dx,
+      globalPosition.dy,
+      globalPosition.dx,
+      globalPosition.dy,
+    );
+    final action = await showMenu<VoidCallback>(
+      context: context,
+      position: position,
+      items: [
+        PopupMenuItem<VoidCallback>(
+          value: () => _pickParent(context, globalPosition, layer),
+          child: const Text('Set parent...'),
+        ),
+        if (layer.parentId != null)
+          PopupMenuItem<VoidCallback>(
+            value: () => c.setLayerParent(layer, null),
+            child: const Text('Clear parent'),
+          ),
+      ],
+    );
+    action?.call();
+  }
+
+  /// Lists every other layer, excluding [child] itself and anything that
+  /// would close a parenting cycle (`c.wouldCreateParentCycle`) -- the
+  /// picker only ever offers choices that are actually safe to apply.
+  Future<void> _pickParent(
+    BuildContext context,
+    Offset globalPosition,
+    EditorLayer child,
+  ) async {
+    final layers = c.doc!.layers;
+    final candidates = [
+      for (final l in layers)
+        if (l.id != child.id && !c.wouldCreateParentCycle(child, l.id, layers)) l,
+    ];
+    if (candidates.isEmpty) return;
+    final position = RelativeRect.fromLTRB(
+      globalPosition.dx,
+      globalPosition.dy,
+      globalPosition.dx,
+      globalPosition.dy,
+    );
+    final pickedId = await showMenu<String>(
+      context: context,
+      position: position,
+      items: [for (final l in candidates) PopupMenuItem(value: l.id, child: Text(l.name))],
+    );
+    if (pickedId != null) c.setLayerParent(child, pickedId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final layers = c.doc!.layers;
+    final l = layers[i];
     final selected = c.selKind == SelKind.layer && c.selIndex == i;
     final eyeSize = formFactorOf(context).isTouch ? 44.0 : 32.0;
-    return InkWell(
-      onTap: () => c.selectLayer(i),
-      child: Container(
-        decoration: BoxDecoration(
-          color: selected ? Hs.blue100 : Hs.white,
-          border: Border(
-            left: BorderSide(
-              color: selected ? Hs.blue500 : Colors.transparent,
-              width: 3,
+    final hasChildren = c.layerHasChildren(l, layers);
+    final collapsed = c.isLayerCollapsed(l.id);
+    return GestureDetector(
+      onSecondaryTapDown: (details) => _showContextMenu(context, details.globalPosition),
+      onLongPressStart: (details) => _showContextMenu(context, details.globalPosition),
+      child: InkWell(
+        onTap: () => c.selectLayer(i),
+        child: Container(
+          decoration: BoxDecoration(
+            color: selected ? Hs.blue100 : Hs.white,
+            border: Border(
+              left: BorderSide(
+                color: selected ? Hs.blue500 : Colors.transparent,
+                width: 3,
+              ),
+              top: const BorderSide(color: Hs.dividerLight),
             ),
-            top: const BorderSide(color: Hs.dividerLight),
           ),
-        ),
-        padding: const EdgeInsets.fromLTRB(9, 8, 12, 8),
-        child: Row(
-          children: [
-            Semantics(
-              button: true,
-              label: l.visible
-                  ? 'Hide layer ${l.name}'
-                  : 'Show layer ${l.name}',
-              child: HsIconButton(
-                l.visible ? Icons.visibility : Icons.visibility_off,
-                size: eyeSize,
-                tooltip: l.visible ? 'Hide layer' : 'Show layer',
-                onTap: () => c.toggleVisible(i),
+          padding: const EdgeInsets.fromLTRB(9, 8, 12, 8),
+          child: Row(
+            children: [
+              // tdd-dot-comics-format Plan Task 3.3, `04-visual.md` Screen 3:
+              // indentation matches ParentId depth -- 0 for every layer in a
+              // document where no layer has a parent, identical to today.
+              SizedBox(width: depth * 16.0),
+              SizedBox(
+                width: 20,
+                child: hasChildren
+                    ? InkWell(
+                        onTap: () => c.toggleLayerCollapsed(l.id),
+                        child: Icon(
+                          collapsed ? Icons.arrow_right : Icons.arrow_drop_down,
+                          size: 18,
+                          color: Hs.textSecondary,
+                        ),
+                      )
+                    : null,
               ),
-            ),
-            const SizedBox(width: 10),
-            KindChip(l.kind),
-            const SizedBox(width: 8),
-            Opacity(opacity: l.visible ? 1 : .4, child: HatchSwatch(l.swatch)),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                l.name,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
-                  color: l.visible ? Hs.textBody : Hs.textSecondary,
+              Semantics(
+                button: true,
+                label: l.visible
+                    ? 'Hide layer ${l.name}'
+                    : 'Show layer ${l.name}',
+                child: HsIconButton(
+                  l.visible ? Icons.visibility : Icons.visibility_off,
+                  size: eyeSize,
+                  tooltip: l.visible ? 'Hide layer' : 'Show layer',
+                  onTap: () => c.toggleVisible(i),
                 ),
-                overflow: TextOverflow.ellipsis,
               ),
-            ),
-          ],
+              const SizedBox(width: 10),
+              KindChip(l.kind),
+              const SizedBox(width: 8),
+              Opacity(
+                opacity: l.visible ? 1 : .4,
+                // 04-visual.md Screen 2: an organizational layer has no
+                // thumbnail (nothing to show) -- a muted dashed placeholder
+                // instead of the real artwork swatch. Screen 4: a
+                // solid-color layer's swatch shows the actual flat color,
+                // not the hatched "no artwork yet" placeholder.
+                child: switch (l.kind) {
+                  EditorLayer.organizationalKind => const _OrganizationalPlaceholder(),
+                  _ when l.solidColor != null =>
+                    _SolidColorSwatch(colorFromHex(l.solidColor!) ?? l.swatch),
+                  _ => HatchSwatch(l.swatch),
+                },
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  l.name,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
+                    color: l.visible ? Hs.textBody : Hs.textSecondary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -232,6 +431,10 @@ class KindChip extends StatelessWidget {
     'background' => ('Bg', Hs.teal500, Icons.image_outlined),
     'character' => ('Chr', Hs.indigo500, Icons.person_outline),
     'sound' => ('Snd', Hs.coral500, Icons.graphic_eq),
+    // 04-visual.md's Screen 2 proposed `Hs.gray300`, which doesn't exist in
+    // the real theme (`theme.dart` only has 200/400/500/600...) -- gray600
+    // used instead, still visually distinct from the `Art` fallback's gray500.
+    'organizational' => ('Org', Hs.gray600, Icons.account_tree_outlined),
     _ => ('Art', Hs.gray500, null),
   };
 

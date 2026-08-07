@@ -1,11 +1,25 @@
 import 'package:flutter/widgets.dart';
+import 'package:uuid/uuid.dart';
 
 import '../i18n/language_registry.dart';
+
+const _uuid = Uuid();
 
 /// Domain model — mirrors the WPF Comics.Editor models 1:1
 /// (Layer, Sound, Anim + AnimTypes, Cultures) with no invented functionality.
 
 enum DocType { comics, puzzle }
+
+/// tdd-dot-comics-format Plan Task 2.1: content-scroll axis, independent of
+/// device [PreferredOrientation] -- never coupled or inferred from it
+/// (03-specifications.md). Default `vertical` matches every document ever
+/// produced (2012 through today).
+enum ScrollType { vertical, horizontal }
+
+/// tdd-dot-comics-format Plan Task 2.1: device screen orientation the
+/// document prefers -- independent of [ScrollType]. Default `portrait`
+/// matches every existing file's implicit, only-ever-exercised behavior.
+enum PreferredOrientation { portrait, landscape, auto }
 
 /// vdd-comics-editor-uiux-lettering, Task 5.1: view-only UI state (not
 /// persisted -- like `EditorController.lang`, this lives entirely on the
@@ -57,8 +71,19 @@ extension AnimTypeLabel on AnimType {
   };
 }
 
+/// tdd-dot-comics-format Plan Task 5.1/5.2: which dimension drives an
+/// [Anim]'s `start`/`end` -- scroll position (today's only-ever-exercised
+/// behavior, `start`/`end` are scroll-pixels/frames) or wall-clock time
+/// (`start`/`end` are milliseconds). Default `scroll`, full backward
+/// compat. Resolved per-`Anim`, not per-layer or per-document, since the
+/// motivating case (a swinging leg animating while scroll is stationary)
+/// needs some anims on a layer to stay scroll-driven while others are
+/// time-driven.
+enum AnimBasis { scroll, time }
+
 /// One keyframed animation. Every anim shares Start/End (frames along the
-/// scroll/timeline); type-specific fields carry the rest.
+/// scroll/timeline, or milliseconds if [basis] is `time`); type-specific
+/// fields carry the rest.
 class Anim {
   // vdd-comics-editor-vertical-scroll, Task 1.1: matches legacy's C# int
   // default (0) for both fields -- see models_mapping.dart's _animFromJson/
@@ -70,6 +95,16 @@ class Anim {
   AnimType type;
   int start;
   int end;
+
+  /// tdd-dot-comics-format Plan Task 5.2. Default `scroll` -- every anim in
+  /// every existing document is implicitly scroll-driven, so this must
+  /// default to matching that, not `time`.
+  AnimBasis basis = AnimBasis.scroll;
+
+  /// Only meaningful when [basis] is `time`. Per Task 5.1's resolution:
+  /// loops by default -- a swinging leg that stops after one swing isn't
+  /// the motivating case Requirements described.
+  bool loop = true;
 
   // translate
   double x = 0, y = 0;
@@ -90,7 +125,33 @@ class Anim {
     ..angle = angle
     ..scaleX = scaleX
     ..scaleY = scaleY
-    ..alpha = alpha;
+    ..alpha = alpha
+    ..basis = basis
+    ..loop = loop;
+}
+
+/// tdd-dot-comics-format Plan Task 4.1, per `03-specifications.md`'s Masks &
+/// Solid Colors section: a general compositing clip on a layer's own
+/// content -- deliberately separate from `TextRegion` ("where does
+/// lettering go" is a different question from "what shape is my own
+/// content clipped to"), even though it reuses the same shape vocabulary.
+/// `shape` is an open string like [EditorLayer.kind]/[EditorLayer.style],
+/// not a Dart enum, for the same JSON-flexibility reason. Only `"rect"` is
+/// exercised by any real content found so far (all 6 real masks in `THE
+/// CHASE` are static rectangles) -- `rect` is the only field this
+/// constructor requires non-null; `points`/`maskFile` exist for
+/// `"polygon"`/`"mask"` but are additive, unused by anything yet.
+class LayerMask {
+  LayerMask.rect(Rect value) : shape = 'rect', rect = value, points = null, maskFile = null;
+  LayerMask({required this.shape, this.rect, this.points, this.maskFile});
+
+  final String shape; // "rect" | "polygon" | "mask"
+  final Rect? rect;
+  final List<Offset>? points;
+  final String? maskFile;
+
+  LayerMask clone() =>
+      LayerMask(shape: shape, rect: rect, points: points == null ? null : List.of(points!), maskFile: maskFile);
 }
 
 /// A localized artwork slot — one per culture (En/Ru/Hi).
@@ -103,13 +164,23 @@ class LayerImage {
 }
 
 class EditorLayer {
-  EditorLayer(this.name, {Offset? at}) : translate = at ?? Offset.zero {
+  /// [id] lets [comicsFromCore] restore a persisted identity on read, and
+  /// [clone] preserve one across undo/redo snapshots (see [clone]'s own
+  /// doc comment for why identity must survive there). Every other caller
+  /// omits it and gets a fresh one.
+  EditorLayer(this.name, {Offset? at, String? id})
+      : translate = at ?? Offset.zero,
+        id = id ?? _uuid.v4() {
     for (var i = 0; i < kLangs.length; i++) {
       images.add(LayerImage(file: i == 0 ? name : ''));
     }
     // default anim, like Layer.Create in the original
     anims.add(Anim(AnimType.translate)..y = translate.dy);
   }
+
+  /// Stable identity, a prerequisite for [parentId] and any other
+  /// cross-layer reference. Never reassigned after construction.
+  final String id;
 
   String name;
   bool visible = true;
@@ -122,6 +193,19 @@ class EditorLayer {
   double size = 0.5; // fraction of page width, for the placeholder swatch
   Color swatch = const Color(0xFF57422D);
 
+  /// tdd-dot-comics-format Plan Task 4.1, per `03-specifications.md`'s
+  /// Masks & Solid Colors section: hex string (e.g. "#ffffff"), mirrors
+  /// Lottie's own `sc` field. When set, takes precedence over [images] for
+  /// rendering -- [images] is never cleared, so switching back from solid
+  /// to image content loses nothing (the resolved precedence question,
+  /// per this plan's own recommendation).
+  String? solidColor;
+
+  /// tdd-dot-comics-format Plan Task 4.1: clips this layer's own rendered
+  /// content (from [images] or [solidColor]) to a shape. Null = today's
+  /// exact behavior, full unclipped content.
+  LayerMask? mask;
+
   /// vdd-comics-editor-uiux-lettering: coarse layer classification, mirrors
   /// Layer.Kind in the core (open string, e.g. "balloon"/"caption"; null =
   /// today's untyped/generic layer). Kept nullable, not defaulted to '',
@@ -131,6 +215,18 @@ class EditorLayer {
   /// Balloon-specific refinement of [kind] (e.g. "speech"/"hand_lettered").
   /// Mirrors Layer.Style; meaningless when kind != "balloon".
   String? style;
+
+  /// tdd-dot-comics-format Plan Task 3.1: references another layer's [id]
+  /// for hierarchical, editor-side live-relative positioning (distinct from
+  /// the flat, symmetric `groupId` mechanism). Null = today's exact
+  /// behavior, an independent top-level layer. Cycle prevention is enforced
+  /// by the controller when setting this, not here.
+  String? parentId;
+
+  /// Marker [kind] value for a non-content, organizational-only layer (e.g.
+  /// a named anchor for a character rig) -- has no [images], exists purely
+  /// to be a [parentId] target or to organize.
+  static const String organizationalKind = 'organizational';
 
   /// Per-language balloon text, keyed by ISO language code. Mirrors
   /// Layer.Translations; independent of [images] — a language can have text
@@ -155,17 +251,24 @@ class EditorLayer {
     return images[index];
   }
 
-  /// Deep copy — for undo/redo snapshots (see [ComicsDoc.clone]). The
-  /// constructor auto-seeds default `images`/`anims`, so those are cleared
-  /// and replaced with real deep copies.
+  /// Deep copy — for undo/redo snapshots (see [ComicsDoc.clone]). Preserves
+  /// [id] deliberately: [ComicsDoc.clone] is the only real caller
+  /// (`edit_history.dart`/`controller.dart`'s undo/redo), and a snapshot
+  /// must represent the *same* layers, not new ones -- a stale [parentId]
+  /// reference after undo would otherwise silently break. The constructor
+  /// auto-seeds default `images`/`anims`, so those are cleared and replaced
+  /// with real deep copies.
   EditorLayer clone() {
-    final copy = EditorLayer(name, at: translate)
+    final copy = EditorLayer(name, at: translate, id: id)
       ..visible = visible
       ..preview = preview
       ..size = size
       ..swatch = swatch
       ..kind = kind
-      ..style = style;
+      ..style = style
+      ..parentId = parentId
+      ..solidColor = solidColor
+      ..mask = mask?.clone();
     copy.images.clear();
     copy.images.addAll(images.map((i) => i.clone()));
     copy.anims.clear();
@@ -203,6 +306,9 @@ class ComicsDoc {
   final List<EditorSound> sounds = [];
   double scale = 1; // puzzle zoom (0.125 .. 1 in the original)
 
+  ScrollType scrollType = ScrollType.vertical;
+  PreferredOrientation preferredOrientation = PreferredOrientation.portrait;
+
   /// Deep copy — used by [EditHistory] to snapshot document state for
   /// undo/redo. Direct clone rather than a JSON round-trip through
   /// comicsToCore/comicsFromCore: newDoc()/openRecent() create a [ComicsDoc]
@@ -210,7 +316,9 @@ class ComicsDoc {
   /// strategy must work without one.
   ComicsDoc clone() {
     final copy = ComicsDoc(name: name, type: type, width: width, height: height)
-      ..scale = scale;
+      ..scale = scale
+      ..scrollType = scrollType
+      ..preferredOrientation = preferredOrientation;
     copy.layers.addAll(layers.map((l) => l.clone()));
     copy.sounds.addAll(sounds.map((s) => s.clone()));
     return copy;

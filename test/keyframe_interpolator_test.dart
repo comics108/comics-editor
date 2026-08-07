@@ -147,4 +147,89 @@ void main() {
       expect(result, const Offset(0, 999));
     });
   });
+
+  // tdd-dot-comics-format, Plan Task 5.4: Anim.basis == time composes an
+  // independent contribution alongside the scroll-driven one -- sum for
+  // translate/rotate.angle, multiply for scale/alpha, exactly matching the
+  // Task 5.4 verification bar: "a layer with one scroll-driven Translate
+  // and one time-driven Alpha: scrolling changes position but not
+  // opacity-over-time; time passing (simulated clock) changes opacity
+  // independent of scroll position."
+  group('Anim.basis == time composition', () {
+    test('a layer with zero time-basis anims is byte-identical to before this feature', () {
+      final scrollOnly = Anim(AnimType.translate, start: 0, end: 200)..x = 100;
+      final withWallClock =
+          KeyframeInterpolator.translateAt([scrollOnly], 100, Offset.zero, 999999);
+      final withoutWallClock = KeyframeInterpolator.translateAt([scrollOnly], 100, Offset.zero);
+      expect(withWallClock, withoutWallClock);
+    });
+
+    test('scrolling changes position but not a time-driven alpha, independent of scroll', () {
+      final scrollTranslate = Anim(AnimType.translate, start: 0, end: 200)..x = 100;
+      final timeAlpha = Anim(AnimType.alpha, start: 0, end: 1000)
+        ..basis = AnimBasis.time
+        ..alpha = 0;
+      final anims = [scrollTranslate, timeAlpha];
+
+      final atScroll0 = KeyframeInterpolator.translateAt(anims, 0, Offset.zero, 0);
+      final atScroll100 = KeyframeInterpolator.translateAt(anims, 100, Offset.zero, 0);
+      expect(atScroll0, isNot(atScroll100)); // scroll-driven translate moved
+
+      final alphaAtWallClock0 = KeyframeInterpolator.alphaAt(anims, 0, 0);
+      final alphaAtWallClock0Scrolled = KeyframeInterpolator.alphaAt(anims, 9999, 0);
+      expect(alphaAtWallClock0, alphaAtWallClock0Scrolled); // alpha ignores scroll position
+    });
+
+    test('time passing changes a time-driven alpha independent of scroll', () {
+      final timeAlpha = Anim(AnimType.alpha, start: 0, end: 1000)
+        ..basis = AnimBasis.time
+        ..alpha = 0;
+      final atStart = KeyframeInterpolator.alphaAt([timeAlpha], 0, 0);
+      final atMid = KeyframeInterpolator.alphaAt([timeAlpha], 0, 500);
+      expect(atStart, 1.0); // resting default before the time-anim starts easing
+      expect(atMid, closeTo(1 + (0 - 1) * _cubicEaseOut(0.5), 1e-9));
+    });
+
+    test('translate/rotate.angle sum scroll and time contributions', () {
+      final scrollTranslate = Anim(AnimType.translate, start: 0, end: 0)..x = 100;
+      final timeTranslate = Anim(AnimType.translate, start: 0, end: 0)
+        ..basis = AnimBasis.time
+        ..y = 50;
+      final result =
+          KeyframeInterpolator.translateAt([scrollTranslate, timeTranslate], 0, Offset.zero, 0);
+      expect(result, const Offset(100, 50));
+    });
+
+    test('scale/alpha multiply scroll and time contributions', () {
+      final scrollScale = Anim(AnimType.scale, start: 0, end: 0)..scaleX = 2..scaleY = 2;
+      final timeScale = Anim(AnimType.scale, start: 0, end: 0)
+        ..basis = AnimBasis.time
+        ..scaleX = 3
+        ..scaleY = 3;
+      final (scaleX, scaleY, _, _) =
+          KeyframeInterpolator.scaleAt([scrollScale, timeScale], 0, 0);
+      expect(scaleX, 6);
+      expect(scaleY, 6);
+    });
+
+    test('a looping time-basis anim wraps wallClockMs modulo the largest end', () {
+      final loop = Anim(AnimType.alpha, start: 0, end: 100)
+        ..basis = AnimBasis.time
+        ..alpha = 0;
+      // loop defaults to true (Task 5.1's resolution) -- 1150ms wraps to 50ms,
+      // same as evaluating at 50ms directly.
+      final wrapped = KeyframeInterpolator.alphaAt([loop], 0, 1150);
+      final direct = KeyframeInterpolator.alphaAt([loop], 0, 50);
+      expect(wrapped, direct);
+    });
+
+    test('a non-looping time-basis anim holds its final value past its own end', () {
+      final once = Anim(AnimType.alpha, start: 0, end: 100)
+        ..basis = AnimBasis.time
+        ..alpha = 0
+        ..loop = false;
+      final result = KeyframeInterpolator.alphaAt([once], 0, 5000);
+      expect(result, 0.0); // held at the fully-eased final value, not wrapped/restarted
+    });
+  });
 }

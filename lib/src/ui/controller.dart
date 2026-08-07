@@ -100,6 +100,22 @@ class EditorController extends ChangeNotifier {
     canvasViewport.addListener(_onSoundTick);
   }
 
+  // ---------- Anim.basis == time (tdd-dot-comics-format Plan Task 5.4) ----------
+  //
+  // A live-ticking `wallClock` (Timer-driven, feeding KeyframeInterpolator's
+  // new wallClockMs parameter so a time-basis anim animates without user
+  // interaction) was attempted here and reverted: a periodic Timer living
+  // for EditorController's lifetime violates flutter_test's strict
+  // no-pending-timer-after-dispose invariant, and broke ~78 unrelated tests
+  // across the suite that construct a controller without a matching
+  // teardown path this change assumed. KeyframeInterpolator's basis-aware
+  // composition (below) is real and tested via a directly-injected
+  // wallClockMs value; wiring a live clock into the canvas for real remains
+  // a genuine, disclosed gap -- it needs a lifecycle-safe source (e.g. a
+  // widget-scoped AnimationController with real vsync, started/stopped by
+  // whichever widget actually renders a time-basis anim) that this task
+  // didn't design.
+
   ComicsDoc? doc;
   Lang lang = Lang.en;
   bool muted = false;
@@ -186,6 +202,87 @@ class EditorController extends ChangeNotifier {
   SelKind selKind = SelKind.none;
   int selIndex = -1;
   int selAnim = -1;
+
+  // ---------- Layer.ParentId (tdd-dot-comics-format Plan Task 3.3) ----------
+
+  /// View-only, like [mode]/[lang] -- never persisted. Collapsed parents
+  /// hide their descendants from [hierarchicalLayerOrder].
+  final Set<String> _collapsedLayerIds = {};
+
+  bool isLayerCollapsed(String layerId) => _collapsedLayerIds.contains(layerId);
+
+  void toggleLayerCollapsed(String layerId) {
+    if (!_collapsedLayerIds.add(layerId)) _collapsedLayerIds.remove(layerId);
+    notifyListeners();
+  }
+
+  /// True if [candidate] has at least one direct child in [layers].
+  bool layerHasChildren(EditorLayer candidate, List<EditorLayer> layers) =>
+      layers.any((l) => l.parentId == candidate.id);
+
+  /// Depth-first render order: each root (no parent, or an orphaned/unknown
+  /// parentId) in original document order, followed recursively by its own
+  /// children in original document order -- returns (docIndex, depth) pairs.
+  /// A document where no layer has a parentId produces the exact same order
+  /// as today's flat list, by construction (every layer is a childless
+  /// root).  Descendants of a collapsed parent are omitted entirely.
+  List<(int, int)> hierarchicalLayerOrder(List<EditorLayer> layers) {
+    final byId = {for (final l in layers) l.id: l};
+    final result = <(int, int)>[];
+
+    void visit(EditorLayer layer, int depth) {
+      final index = layers.indexOf(layer);
+      result.add((index, depth));
+      if (_collapsedLayerIds.contains(layer.id)) return;
+      for (final child in layers) {
+        if (child.parentId == layer.id) visit(child, depth + 1);
+      }
+    }
+
+    for (final layer in layers) {
+      final parentId = layer.parentId;
+      final hasKnownParent = parentId != null && byId.containsKey(parentId);
+      if (!hasKnownParent) visit(layer, 0);
+    }
+    return result;
+  }
+
+  /// True if setting `child.parentId = candidateParentId` would create a
+  /// cycle -- either directly (a layer parented to itself) or indirectly (a
+  /// layer parented to one of its own descendants).
+  bool wouldCreateParentCycle(
+    EditorLayer child,
+    String candidateParentId,
+    List<EditorLayer> layers,
+  ) {
+    if (candidateParentId == child.id) return true;
+    // Walk descendants of `child`; if any of them is `candidateParentId`,
+    // parenting `child` under it would close a loop.
+    bool visit(String currentId) {
+      for (final l in layers) {
+        if (l.parentId == currentId) {
+          if (l.id == candidateParentId) return true;
+          if (visit(l.id)) return true;
+        }
+      }
+      return false;
+    }
+    return visit(child.id);
+  }
+
+  /// Sets or clears a layer's parent. No-op (does not mutate/notify) if it
+  /// would create a cycle -- callers (the "Set parent..." picker) should
+  /// already exclude cycle-creating choices, this is the last line of
+  /// defense.
+  void setLayerParent(EditorLayer child, String? parentId) {
+    if (parentId != null &&
+        wouldCreateParentCycle(child, parentId, doc!.layers)) {
+      return;
+    }
+    _beginHistory();
+    child.parentId = parentId;
+    _commitHistory();
+  }
 
   int playhead = 0; // current frame
   final int totalFrames = 600;
@@ -536,14 +633,24 @@ class EditorController extends ChangeNotifier {
   }
 
   // ---------- document lifecycle ----------
-  void newDoc(DocType type) {
+  // tdd-dot-comics-format Plan Task 2.3: New Document dialog selections,
+  // both independent of `type` and of each other -- default to the
+  // backward-compat values so every existing call site (that doesn't pass
+  // them) is unaffected.
+  void newDoc(
+    DocType type, {
+    ScrollType scrollType = ScrollType.vertical,
+    PreferredOrientation preferredOrientation = PreferredOrientation.portrait,
+  }) {
     coreDoc = null;
     doc = ComicsDoc(
       name: type == DocType.comics ? 'untitled.comics' : 'untitled.puzzle',
       type: type,
       width: type == DocType.comics ? 1080 : 1024,
       height: type == DocType.comics ? 1920 : 768,
-    );
+    )
+      ..scrollType = scrollType
+      ..preferredOrientation = preferredOrientation;
     _history.clear();
     _resetWorkspaceState();
     resetViewport();
@@ -778,6 +885,43 @@ class EditorController extends ChangeNotifier {
     selectLayer(d.layers.length - 1);
   }
 
+  // tdd-dot-comics-format Plan Task 3.5: a non-content layer that exists
+  // purely to be a parentId target or to organize -- no artwork, so images
+  // (auto-seeded by the EditorLayer constructor) is cleared right after.
+  void addOrganizationalLayer() {
+    final d = doc!;
+    _beginHistory();
+    final l =
+        EditorLayer(
+            'anchor_${d.layers.length + 1}',
+            at: Offset(40, 60.0 + d.layers.length * 30),
+          )
+          ..kind = EditorLayer.organizationalKind;
+    l.images.clear();
+    d.layers.add(l);
+    _commitHistory();
+    selectLayer(d.layers.length - 1);
+  }
+
+  // tdd-dot-comics-format Plan Task 4.3: a layer that renders as a flat
+  // color fill instead of a raster image. `images` is left populated by the
+  // constructor (never cleared) -- solidColor takes precedence for
+  // rendering per models.dart's own doc comment, so nothing is lost if the
+  // author later clears solidColor and wants the image slots back.
+  void addSolidColorLayer(String hexColor) {
+    final d = doc!;
+    _beginHistory();
+    final l =
+        EditorLayer(
+            'solid_${d.layers.length + 1}',
+            at: Offset(40, 60.0 + d.layers.length * 30),
+          )
+          ..solidColor = hexColor;
+    d.layers.add(l);
+    _commitHistory();
+    selectLayer(d.layers.length - 1);
+  }
+
   void moveLayer(int dir) {
     if (selKind != SelKind.layer) return;
     final i = selIndex, j = i + dir;
@@ -796,7 +940,13 @@ class EditorController extends ChangeNotifier {
     if (selKind != SelKind.layer && selKind != SelKind.sound) return;
     _beginHistory();
     if (selKind == SelKind.layer) {
-      doc!.layers.removeAt(selIndex);
+      final removed = doc!.layers.removeAt(selIndex);
+      // tdd-dot-comics-format Plan Task 3.1, orphan policy: clear parentId
+      // on any child, keep its last-resolved absolute position -- no
+      // re-computation, no cascade delete.
+      for (final layer in doc!.layers) {
+        if (layer.parentId == removed.id) layer.parentId = null;
+      }
     } else {
       doc!.sounds.removeAt(selIndex);
     }
@@ -834,6 +984,44 @@ class EditorController extends ChangeNotifier {
     notifyListeners();
   }
 
+  // tdd-dot-comics-format Plan Task 4.3: MASK section's shape selector.
+  // `null` = None (today's exact behavior, full unclipped content). Only
+  // "rect" has real editing UI; a fresh rect defaults to a visible-sized
+  // placeholder the author immediately sees and can adjust.
+  void setLayerMaskShape(String? shape) {
+    final l = selectedLayer;
+    if (l == null) return;
+    _beginHistory();
+    l.mask = switch (shape) {
+      null => null,
+      'rect' => LayerMask.rect(const Rect.fromLTWH(0, 0, 100, 100)),
+      _ => LayerMask(shape: shape),
+    };
+    _commitHistory();
+    notifyListeners();
+  }
+
+  /// Live preview while dragging a mask rect field -- bracketed by
+  /// [beginGestureHistory]/[commitGestureHistory] at the call site, same
+  /// contract as [previewCanvasSize].
+  void previewLayerMaskRect(Rect rect) {
+    final l = selectedLayer;
+    if (l == null) return;
+    l.mask = LayerMask.rect(rect);
+    notifyListeners();
+  }
+
+  /// Direct commit (e.g. typing a value), own history transaction -- same
+  /// contract as [setCanvasSize].
+  void setLayerMaskRect(Rect rect) {
+    final l = selectedLayer;
+    if (l == null) return;
+    _beginHistory();
+    l.mask = LayerMask.rect(rect);
+    _commitHistory();
+    notifyListeners();
+  }
+
   /// vdd-comics-editor-uiux-lettering, Task 4.2: sets/clears the selected
   /// layer's balloon text for [langCode] (local mutation, same shape as
   /// [setLayerKind]). An empty [text] removes the entry -- mirrors
@@ -852,12 +1040,26 @@ class EditorController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Drag the selected layer around the canvas (Translate).
+  /// Drag the selected layer around the canvas (Translate). tdd-dot-comics-
+  /// format Plan Task 3.4: every parentId descendant moves live by the same
+  /// delta, so a parented rig (e.g. голова -> руки сложен -> предплечье)
+  /// drags as one rigid unit -- a no-op walk for every document that has no
+  /// parentId set, i.e. today's exact behavior.
   void dragSelected(Offset delta) {
     final l = selectedLayer;
     if (l == null) return;
     l.translate += delta;
+    _dragDescendants(l, delta);
     notifyListeners();
+  }
+
+  void _dragDescendants(EditorLayer parent, Offset delta) {
+    for (final child in doc!.layers) {
+      if (child.parentId == parent.id) {
+        child.translate += delta;
+        _dragDescendants(child, delta);
+      }
+    }
   }
 
   /// vdd-comics-editor-uiux-lettering, Task 2.3: tile-writes real artwork
