@@ -41,6 +41,12 @@
 	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Comics Editor needs access to your photo library so you can choose images to use as layer and balloon artwork.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Comics Editor needs access to your camera so you can take a photo to use as layer or balloon artwork.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Comics Editor does not use your location. This description is included because a bundled photo-picker component references location APIs.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
