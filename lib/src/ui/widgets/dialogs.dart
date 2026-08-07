@@ -55,7 +55,8 @@ Future<void> showNewDialog(BuildContext context) async {
                   _TypeCard(
                     title: 'Vertical-scroll comic strip',
                     subtitle: 'Default · infinite vertical reading flow.',
-                    selected: choice == DocType.comics &&
+                    selected:
+                        choice == DocType.comics &&
                         scrollType == ScrollType.vertical,
                     preview: _stripPreview(),
                     onTap: () => setState(() {
@@ -70,9 +71,11 @@ Future<void> showNewDialog(BuildContext context) async {
                     // viewer playback direction itself is a separate,
                     // still-vertical-only capability, not part of this
                     // schema/dialog wiring.
-                    subtitle: 'Sets the document\'s scroll axis; canvas/viewer '
+                    subtitle:
+                        'Sets the document\'s scroll axis; canvas/viewer '
                         'playback is still vertical-only.',
-                    selected: choice == DocType.comics &&
+                    selected:
+                        choice == DocType.comics &&
                         scrollType == ScrollType.horizontal,
                     preview: _stripPreview(),
                     onTap: () => setState(() {
@@ -118,10 +121,12 @@ Future<void> showNewDialog(BuildContext context) async {
                   child: _OptionTile(
                     icon: Icons.stay_current_portrait,
                     label: 'Portrait',
-                    selected: preferredOrientation == PreferredOrientation.portrait,
+                    selected:
+                        preferredOrientation == PreferredOrientation.portrait,
                     enabled: true,
                     onTap: () => setState(
-                      () => preferredOrientation = PreferredOrientation.portrait,
+                      () =>
+                          preferredOrientation = PreferredOrientation.portrait,
                     ),
                   ),
                 ),
@@ -130,10 +135,12 @@ Future<void> showNewDialog(BuildContext context) async {
                   child: _OptionTile(
                     icon: Icons.stay_current_landscape,
                     label: 'Landscape',
-                    selected: preferredOrientation == PreferredOrientation.landscape,
+                    selected:
+                        preferredOrientation == PreferredOrientation.landscape,
                     enabled: true,
                     onTap: () => setState(
-                      () => preferredOrientation = PreferredOrientation.landscape,
+                      () =>
+                          preferredOrientation = PreferredOrientation.landscape,
                     ),
                   ),
                 ),
@@ -488,73 +495,57 @@ class _TypeCard extends StatelessWidget {
     required this.selected,
     required this.preview,
     required this.onTap,
-    this.enabled = true,
   });
   final String title, subtitle;
   final bool selected;
   final Widget preview;
   final VoidCallback onTap;
-  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      enabled: enabled,
       selected: selected,
       button: true,
       child: GestureDetector(
-        onTap: enabled ? onTap : null,
-        child: Opacity(
-          opacity: enabled ? 1 : .55,
-          child: Container(
-            decoration: BoxDecoration(
-              border: Border.all(
-                color: selected ? Hs.blue500 : Hs.divider,
-                width: selected ? 2 : 1,
-              ),
-              borderRadius: BorderRadius.circular(Hs.rCard),
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: selected ? Hs.blue500 : Hs.divider,
+              width: selected ? 2 : 1,
             ),
-            clipBehavior: Clip.antiAlias,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Stack(
+            borderRadius: BorderRadius.circular(Hs.rCard),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(height: 100, child: preview),
+              Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    SizedBox(height: 100, child: preview),
-                    if (!enabled)
-                      const Positioned(
-                        right: 8,
-                        top: 8,
-                        child: Icon(Icons.lock_outline, color: Hs.white),
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
                       ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Hs.textSecondary,
+                        height: 1.35,
+                      ),
+                    ),
                   ],
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: Hs.textSecondary,
-                          height: 1.35,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

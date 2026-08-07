@@ -102,6 +102,55 @@ jobs:
       # см. flows/sdd-comics-editor-v2.9-android-ios) — macOS host используется как
       # прогон для этой проверки, т.к. NativeAOT не кросс-компилируется между ОС.
       - run: tool/build_native.sh osx
+      - name: Configure signing
+        # Reuses the same Mac App Store distribution cert/profile secrets as
+        # release-macos (macos/fastlane/Fastfile) — this job builds the same
+        # Runner target with the same Release config, so it hits the same
+        # "no Apple Development identity" failure Xcode's own project-format
+        # auto-migration (`flutter build macos` upgrading project.pbxproj)
+        # surfaces once a real DEVELOPMENT_TEAM is present. Unlike the
+        # fastlane lane, this is a CI-only override appended to a local copy
+        # of Release.xcconfig (never committed) — it does not touch
+        # project.pbxproj or the checked-in Release.xcconfig, so the local
+        # Xcode Archive/upload path this app was actually published through
+        # is unaffected.
+        env:
+          MACOS_CERT_APP_P12_BASE64: ${{ secrets.MACOS_CERT_APP_P12_BASE64 }}
+          MACOS_CERT_APP_PASSWORD: ${{ secrets.MACOS_CERT_APP_PASSWORD }}
+          MACOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.MACOS_PROVISIONING_PROFILE_BASE64 }}
+          SIGNING_KEYCHAIN_PASSWORD: ${{ secrets.SIGNING_KEYCHAIN_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -z "$MACOS_CERT_APP_P12_BASE64" ] || [ -z "$MACOS_PROVISIONING_PROFILE_BASE64" ]; then
+            echo "::error::MACOS_CERT_APP_P12_BASE64 / MACOS_PROVISIONING_PROFILE_BASE64 secret is not set — see macos/fastlane/Fastfile"
+            exit 1
+          fi
+          echo "$MACOS_CERT_APP_P12_BASE64" | base64 --decode > macos_app.p12
+          echo "$MACOS_PROVISIONING_PROFILE_BASE64" | base64 --decode > macos_appstore.provisionprofile
+
+          security create-keychain -p "$SIGNING_KEYCHAIN_PASSWORD" ci_signing.keychain
+          security list-keychains -d user -s ci_signing.keychain $(security list-keychains -d user | sed 's/"//g')
+          security unlock-keychain -p "$SIGNING_KEYCHAIN_PASSWORD" ci_signing.keychain
+          security set-keychain-settings -lut 3600 ci_signing.keychain
+          security import macos_app.p12 -k ci_signing.keychain -P "$MACOS_CERT_APP_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$SIGNING_KEYCHAIN_PASSWORD" ci_signing.keychain
+
+          profile_uuid=$(security cms -D -i macos_appstore.provisionprofile | plutil -extract UUID raw -)
+          profiles_dir="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$profiles_dir"
+          cp macos_appstore.provisionprofile "$profiles_dir/$profile_uuid.provisionprofile"
+
+          app_identity=$(security find-identity -v -p codesigning ci_signing.keychain | grep '3rd Party Mac Developer Application' | head -1 | awk -F'"' '{print $2}')
+          if [ -z "$app_identity" ]; then
+            echo "::error::No '3rd Party Mac Developer Application' identity found in keychain after import"
+            exit 1
+          fi
+          {
+            echo "CODE_SIGN_STYLE = Manual"
+            echo "CODE_SIGN_IDENTITY = $app_identity"
+            echo "DEVELOPMENT_TEAM = $APPLE_TEAM_ID"
+            echo "PROVISIONING_PROFILE_SPECIFIER = $profile_uuid"
+          } >> macos/Runner/Configs/Release.xcconfig
       - run: flutter build macos --release
       - name: Embed headless core into the built app
         run: tool/build_headless.sh
@@ -149,11 +198,14 @@ jobs:
         run: |
           bash -n linux/packaging/install-user.sh linux/packaging/uninstall-user.sh
           xmllint --noout linux/packaging/net.nativemind.comics.editor.xml
-          desktop-file-validate linux/packaging/net.nativemind.comics.editor.desktop.in
           test_root="$(mktemp -d)"
           cp /usr/bin/true "$test_root/Comics Editor"
           XDG_DATA_HOME="$test_root/data" linux/packaging/install-user.sh "$test_root/Comics Editor"
           test -f "$test_root/data/applications/net.nativemind.comics.editor.desktop"
+          # desktop-file-validate requires a literal .desktop filename, so it
+          # can't check the .desktop.in template directly -- validate the
+          # rendered file install-user.sh just produced instead.
+          desktop-file-validate "$test_root/data/applications/net.nativemind.comics.editor.desktop"
           XDG_DATA_HOME="$test_root/data" linux/packaging/uninstall-user.sh
           test ! -e "$test_root/data/applications/net.nativemind.comics.editor.desktop"
           test ! -e "$test_root/data/mime/packages/net.nativemind.comics.editor.xml"
