@@ -201,9 +201,10 @@ packages:
   flutter_comics_viewer:
     dependency: "direct main"
     description:
-      path: "../../libs/comics_viewer/flutter_comics_viewer"
-      relative: true
-    source: path
+      name: flutter_comics_viewer
+      sha256: "6403bf90305e1ac0d6008d403b48ad5e77831e41f55b1e989218e9707f50252e"
+      url: "https://pub.dev"
+    source: hosted
     version: "1.0.0"
   flutter_lints:
     dependency: "direct dev"

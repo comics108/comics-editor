@@ -42,8 +42,8 @@ dependencies:
   image: ^4.8.0
   audioplayers: ^6.8.1
   uuid: ^4.6.0
-  flutter_comics_viewer:
-    path: ../../libs/comics_viewer/flutter_comics_viewer
+  flutter_comics_viewer: ^1.0.0
+
 
 dev_dependencies:
   flutter_test:
