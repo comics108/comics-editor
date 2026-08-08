@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:ui';
 
-import '../ui/models.dart';
+import 'package:flutter_comics/flutter_comics.dart';
 
 /// Конвертация между JSON ядра (data.json редактора: camelCase,
 /// TypeNameHandling.Auto — `$type` на подклассах Anim) и view-моделями макета.

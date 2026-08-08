@@ -11,7 +11,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:comics_editor/src/ui/controller.dart';
-import 'package:comics_editor/src/ui/models.dart';
+import 'package:comics_editor/src/ui/editor_mode.dart';
+import 'package:flutter_comics/flutter_comics.dart';
 import 'package:comics_editor/src/ui/screens/editor_screen.dart';
 import 'package:comics_editor/src/ui/widgets/balloon_rail.dart';
 import 'package:comics_editor/src/ui/widgets/canvas_view.dart';

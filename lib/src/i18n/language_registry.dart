@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter_comics/flutter_comics.dart';
 
 /// One entry in the language table: an ISO code plus display names.
 class LanguageInfo {
@@ -82,4 +83,29 @@ class LanguageRegistry {
       index >= 0 && index < languages.length ? languages[index].code : null;
 
   bool isKnown(String code) => _indexByCode.containsKey(code);
+}
+
+/// flows/sdd-flutter-comics Plan Task 1.4: moved out of `EditorLayer` itself
+/// when `models.dart` relocated to `libs/flutter_comics` -- this is the one
+/// place `EditorLayer` and `LanguageRegistry` (`rootBundle`-coupled, not
+/// portable) meet, so it stays here as an extension rather than dragging
+/// that asset-loading dependency into the shared library.
+extension EditorLayerLanguageSlot on EditorLayer {
+  /// vdd-comics-editor-uiux-lettering, Task 1.2: resolves [langCode] to its
+  /// [LanguageRegistry] slot index and returns that [LayerImage], extending
+  /// [images] with empty placeholders as needed. Pure Dart, additive-only --
+  /// en/ru/hi always land at their existing Cultures-aligned indices 0/1/2;
+  /// anything else appends at the registry's fixed, append-only position.
+  /// Calling this twice for the same code returns the same slot, never a
+  /// duplicate.
+  LayerImage imageSlotFor(String langCode, LanguageRegistry registry) {
+    final index = registry.indexFor(langCode);
+    if (index == null) {
+      throw ArgumentError.value(langCode, 'langCode', 'Unknown language code');
+    }
+    while (images.length <= index) {
+      images.add(LayerImage());
+    }
+    return images[index];
+  }
 }

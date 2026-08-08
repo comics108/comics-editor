@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_comics/flutter_comics.dart';
 
 import '../controller.dart';
-import '../models.dart';
 import '../theme.dart';
 
 /// Bottom timeline — the modernization of the original's scroll-as-time model.

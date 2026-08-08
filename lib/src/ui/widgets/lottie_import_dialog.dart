@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_comics/flutter_comics.dart';
 
 import '../controller.dart';
-import '../lottie/lottie_import.dart';
 import '../theme.dart';
 import 'common.dart';
 import 'numeric_property_control.dart';

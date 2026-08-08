@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_comics/flutter_comics.dart';
 import 'package:image/image.dart' as img;
 
 import '../../ai/balloon_ai_client.dart';
@@ -9,7 +10,6 @@ import '../../bridge/models_mapping.dart';
 import '../../i18n/language_registry.dart';
 import '../../io/tile_writer.dart';
 import '../controller.dart';
-import '../models.dart';
 import '../theme.dart';
 import 'common.dart';
 

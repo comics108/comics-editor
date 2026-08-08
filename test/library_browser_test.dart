@@ -8,7 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 
 import 'package:comics_editor/src/ui/controller.dart';
-import 'package:comics_editor/src/ui/models.dart';
+import 'package:flutter_comics/flutter_comics.dart';
 import 'package:comics_editor/src/ui/widgets/library_browser.dart';
 
 Uint8List _samplePng() => Uint8List.fromList(img.encodePng(img.Image(width: 12, height: 12)));

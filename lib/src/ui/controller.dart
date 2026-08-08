@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_comics/flutter_comics.dart';
 import 'package:flutter_comics_viewer/flutter_comics_viewer.dart' as viewer;
 
 // v2.9 обвязка: ядро (процесс на десктопе / NativeAOT+FFI на мобильных).
@@ -21,15 +22,12 @@ import '../ai/stub_cutting_client.dart';
 import '../bridge/comics_core.dart';
 import '../bridge/documents.dart';
 import '../bridge/models_mapping.dart';
-import '../bridge/lottie_mapping.dart';
 import '../i18n/language_registry.dart';
 import '../io/tile_writer.dart';
 import 'audio/sound_player.dart';
 import 'device_profile.dart';
 import 'edit_history.dart';
-import 'lottie/lottie_export.dart';
-import 'lottie/lottie_import.dart';
-import 'models.dart';
+import 'editor_mode.dart';
 
 /// Which element type is selected in the right-hand Properties pane.
 enum SelKind { none, layer, sound }

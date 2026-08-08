@@ -9,10 +9,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:comics_editor/src/bridge/lottie_mapping.dart';
 import 'package:comics_editor/src/ui/controller.dart';
-import 'package:comics_editor/src/ui/lottie/lottie_import.dart';
-import 'package:comics_editor/src/ui/models.dart';
+import 'package:flutter_comics/flutter_comics.dart';
 
 void main() {
   // Same real 1x1 PNG already used by test/process_cutting_client_test.dart.

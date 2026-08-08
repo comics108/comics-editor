@@ -14,7 +14,7 @@ import 'package:comics_editor/src/ai/cutting_client.dart';
 import 'package:comics_editor/src/ai/stub_cutting_client.dart';
 import 'package:comics_editor/src/bridge/models_mapping.dart';
 import 'package:comics_editor/src/ui/controller.dart';
-import 'package:comics_editor/src/ui/models.dart';
+import 'package:flutter_comics/flutter_comics.dart';
 
 Uint8List _samplePng([int width = 40, int height = 50]) {
   final image = img.Image(width: width, height: height);

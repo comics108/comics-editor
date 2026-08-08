@@ -5,7 +5,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:comics_editor/src/ui/controller.dart';
-import 'package:comics_editor/src/ui/models.dart';
+import 'package:flutter_comics/flutter_comics.dart';
 
 void main() {
   test('balloonStepInfo is null with no document, no balloons, or nothing selected', () {

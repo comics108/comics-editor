@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:comics_editor/main.dart';
 import 'package:comics_editor/src/app_version.dart';
 import 'package:comics_editor/src/ui/controller.dart';
-import 'package:comics_editor/src/ui/models.dart';
+import 'package:flutter_comics/flutter_comics.dart';
 import 'package:comics_editor/src/ui/screens/editor_screen.dart';
 
 void main() {

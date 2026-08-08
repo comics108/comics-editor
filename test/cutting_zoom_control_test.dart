@@ -10,7 +10,7 @@ import 'package:image/image.dart' as img;
 import 'package:comics_editor/src/ai/cutting_client.dart';
 import 'package:comics_editor/src/ai/stub_cutting_client.dart';
 import 'package:comics_editor/src/ui/controller.dart';
-import 'package:comics_editor/src/ui/models.dart';
+import 'package:flutter_comics/flutter_comics.dart';
 import 'package:comics_editor/src/ui/widgets/cutting_canvas.dart';
 
 Uint8List _samplePng([int width = 200, int height = 150]) =>

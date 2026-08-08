@@ -6,7 +6,8 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:comics_editor/src/ui/controller.dart';
-import 'package:comics_editor/src/ui/models.dart';
+import 'package:comics_editor/src/ui/editor_mode.dart';
+import 'package:flutter_comics/flutter_comics.dart';
 
 void main() {
   test('EditorMode has a cutting value with the expected label', () {

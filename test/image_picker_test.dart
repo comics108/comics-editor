@@ -21,7 +21,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 
 import 'package:comics_editor/src/ui/controller.dart';
-import 'package:comics_editor/src/ui/models.dart';
+import 'package:flutter_comics/flutter_comics.dart';
 
 class _FakeFilePickerPlatform extends FilePickerPlatform {
   _FakeFilePickerPlatform(this.result);

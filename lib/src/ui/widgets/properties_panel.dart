@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_comics/flutter_comics.dart';
 
 import '../../i18n/language_registry.dart';
 import '../controller.dart';
 import '../device_profile.dart';
-import '../models.dart';
+import '../editor_mode.dart';
 import '../theme.dart';
 import 'balloon_editor_card.dart';
 import 'common.dart';

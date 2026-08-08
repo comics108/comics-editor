@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:comics_editor/src/document_open/document_open_coordinator.dart';
 import 'package:comics_editor/src/ui/controller.dart';
-import 'package:comics_editor/src/ui/models.dart';
+import 'package:flutter_comics/flutter_comics.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 final class _FakePendingDocumentSource implements PendingDocumentSource {

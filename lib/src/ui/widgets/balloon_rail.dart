@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_comics/flutter_comics.dart';
 
 import '../../i18n/language_registry.dart';
 import '../controller.dart';
-import '../models.dart';
 import '../theme.dart';
 
 /// vdd-comics-editor-uiux-lettering, Task 5.2: filtered list of the current

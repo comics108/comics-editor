@@ -9,7 +9,7 @@ import 'package:image/image.dart' as img;
 import 'package:comics_editor/src/ai/cutting_client.dart';
 import 'package:comics_editor/src/ai/stub_cutting_client.dart';
 import 'package:comics_editor/src/ui/controller.dart';
-import 'package:comics_editor/src/ui/models.dart';
+import 'package:flutter_comics/flutter_comics.dart';
 import 'package:comics_editor/src/ui/widgets/cutting_region_rail.dart';
 
 Uint8List _samplePng() => Uint8List.fromList(img.encodePng(img.Image(width: 20, height: 20)));

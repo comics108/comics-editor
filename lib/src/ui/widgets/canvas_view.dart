@@ -1,8 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_comics/flutter_comics.dart';
 
-import '../anim/keyframe_interpolator.dart';
 import '../controller.dart';
 import '../theme.dart';
 import 'common.dart';

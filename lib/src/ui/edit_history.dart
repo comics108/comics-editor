@@ -1,4 +1,4 @@
-import 'models.dart';
+import 'package:flutter_comics/flutter_comics.dart';
 
 /// Стек истории отмены/повтора — снапшоты документа ([ComicsDoc.clone]).
 /// Живёт в рамках одного открытого документа: [EditorController] вызывает

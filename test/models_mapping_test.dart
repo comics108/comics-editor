@@ -8,7 +8,7 @@ import 'dart:ui';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:comics_editor/src/bridge/models_mapping.dart';
-import 'package:comics_editor/src/ui/models.dart';
+import 'package:flutter_comics/flutter_comics.dart';
 
 Map<String, dynamic> _rawDoc(List<Map<String, dynamic>> layers) => {
       'width': 1080,

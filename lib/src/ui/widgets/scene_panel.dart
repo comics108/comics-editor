@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_comics/flutter_comics.dart';
 
 import '../controller.dart';
-import '../models.dart';
 import '../responsive.dart';
 import '../theme.dart';
 import 'common.dart';

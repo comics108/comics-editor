@@ -13,7 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:comics_editor/src/bridge/dart_io_core.dart';
 import 'package:comics_editor/src/bridge/models_mapping.dart';
-import 'package:comics_editor/src/ui/anim/keyframe_interpolator.dart';
+import 'package:flutter_comics/flutter_comics.dart';
 
 double _cubicEaseOut(double t) {
   final tm1 = t - 1;

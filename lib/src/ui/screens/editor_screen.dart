@@ -2,10 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_comics/flutter_comics.dart';
 
 import '../../i18n/language_registry.dart';
 import '../controller.dart';
-import '../models.dart';
+import '../editor_mode.dart';
 import '../responsive.dart';
 import '../theme.dart';
 import '../widgets/balloon_editor_card.dart';

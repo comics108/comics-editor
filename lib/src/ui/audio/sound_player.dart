@@ -1,6 +1,5 @@
 import 'package:audioplayers/audioplayers.dart';
-
-import '../models.dart';
+import 'package:flutter_comics/flutter_comics.dart';
 
 /// What [SoundPlayer.evaluate] decided to do this tick, for a given sound.
 enum SoundAction { none, playOnce, startLooping, stop }

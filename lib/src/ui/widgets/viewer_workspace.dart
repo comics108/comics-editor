@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_comics_viewer/flutter_comics_viewer.dart';
 
 import '../controller.dart';
-import '../models.dart';
+import '../editor_mode.dart';
 import '../theme.dart';
 import 'common.dart';
 

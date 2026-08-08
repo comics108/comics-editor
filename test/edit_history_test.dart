@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:comics_editor/src/ui/edit_history.dart';
-import 'package:comics_editor/src/ui/models.dart';
+import 'package:flutter_comics/flutter_comics.dart';
 
 ComicsDoc _doc({int layers = 0}) {
   final d = ComicsDoc(name: 'test.comics', type: DocType.comics);

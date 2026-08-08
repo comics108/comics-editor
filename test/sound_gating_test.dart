@@ -4,7 +4,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:comics_editor/src/ui/audio/sound_player.dart';
-import 'package:comics_editor/src/ui/models.dart';
+import 'package:flutter_comics/flutter_comics.dart';
 
 void main() {
   group('point trigger (Start == End)', () {
