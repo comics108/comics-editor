@@ -154,6 +154,32 @@ class LayerMask {
       LayerMask(shape: shape, rect: rect, points: points == null ? null : List.of(points!), maskFile: maskFile);
 }
 
+/// tdd-dot-lottie-import-export Plan Task 1.3, per `03-specifications.md`'s
+/// `TextRegion` interface: same shape vocabulary as [LayerMask]
+/// (rect/polygon/mask), reused for convenience -- the two concepts are not
+/// the same thing ("where lettering goes" vs. "what this layer's own
+/// content is clipped to"). `isHandLettered` distinguishes hand-drawn
+/// lettering artwork from rendered font text; its exact relationship to
+/// `EditorLayer.style == "hand_lettered"` is a deferred Requirements
+/// question, not resolved by this class alone.
+class TextRegion {
+  TextRegion({required this.shape, this.rect, this.points, this.maskFile, this.isHandLettered});
+
+  final String shape; // "rect" | "polygon" | "mask"
+  final Rect? rect;
+  final List<Offset>? points;
+  final String? maskFile;
+  final bool? isHandLettered;
+
+  TextRegion clone() => TextRegion(
+        shape: shape,
+        rect: rect,
+        points: points == null ? null : List.of(points!),
+        maskFile: maskFile,
+        isHandLettered: isHandLettered,
+      );
+}
+
 /// A localized artwork slot — one per culture (En/Ru/Hi).
 class LayerImage {
   LayerImage({this.file = '', this.popup = ''});
@@ -228,6 +254,26 @@ class EditorLayer {
   /// to be a [parentId] target or to organize.
   static const String organizationalKind = 'organizational';
 
+  /// tdd-dot-lottie-import-export Plan Task 1.1: a flat, symmetric "these
+  /// layers belong together" tag -- distinct from [parentId]'s hierarchy.
+  /// Used for Lottie precomp-flattening on import (`03-specifications.md`'s
+  /// Traceability Matrix, A3/D2) and `vdd-comics-editor-systematization-
+  /// uiux`'s own Layer Grouping design. Whether this ends up subsumed by
+  /// `parentId` for the precomp case specifically is a still-open question
+  /// (per that flow's Specifications) -- kept as its own field for now.
+  String? groupId;
+
+  /// tdd-dot-lottie-import-export Plan Task 1.3: where within this layer's
+  /// own image the lettering sits -- annotation only, never changes how the
+  /// layer's (already fully rendered) image displays. Null = today's exact
+  /// behavior for every existing layer. Two Requirements-level questions
+  /// remain genuinely deferred, not resolved by this field's shape alone:
+  /// (1) the relationship between [TextRegion.isHandLettered] and this
+  /// layer's own [style] == "hand_lettered" value; (2) whether the
+  /// region's coordinates are layer-local (implemented here, per
+  /// Specifications' stated leaning) or absolute canvas coordinates.
+  TextRegion? textRegion;
+
   /// Per-language balloon text, keyed by ISO language code. Mirrors
   /// Layer.Translations; independent of [images] — a language can have text
   /// here with no rendered artwork yet.
@@ -268,7 +314,9 @@ class EditorLayer {
       ..style = style
       ..parentId = parentId
       ..solidColor = solidColor
-      ..mask = mask?.clone();
+      ..mask = mask?.clone()
+      ..groupId = groupId
+      ..textRegion = textRegion?.clone();
     copy.images.clear();
     copy.images.addAll(images.map((i) => i.clone()));
     copy.anims.clear();
@@ -309,6 +357,17 @@ class ComicsDoc {
   ScrollType scrollType = ScrollType.vertical;
   PreferredOrientation preferredOrientation = PreferredOrientation.portrait;
 
+  /// tdd-dot-comics-format Plan (2026-08-08 addition), implemented here by
+  /// tdd-dot-lottie-import-export Plan Task 1.5 -- this flow is the first
+  /// real consumer (Playback Viewport mode's default viewport size and
+  /// scene-boundary convention for export). Independent of [scrollType]/
+  /// [preferredOrientation], same as those two are independent of each
+  /// other -- scale/extent of the viewing window, not direction. Default
+  /// 720x1600 matches the real value found in `samples/
+  /// sample_playback_viewport.lottie_unzip` (checked byte-level).
+  int preferredViewportWidth = 720;
+  int preferredViewportHeight = 1600;
+
   /// Deep copy — used by [EditHistory] to snapshot document state for
   /// undo/redo. Direct clone rather than a JSON round-trip through
   /// comicsToCore/comicsFromCore: newDoc()/openRecent() create a [ComicsDoc]
@@ -318,7 +377,9 @@ class ComicsDoc {
     final copy = ComicsDoc(name: name, type: type, width: width, height: height)
       ..scale = scale
       ..scrollType = scrollType
-      ..preferredOrientation = preferredOrientation;
+      ..preferredOrientation = preferredOrientation
+      ..preferredViewportWidth = preferredViewportWidth
+      ..preferredViewportHeight = preferredViewportHeight;
     copy.layers.addAll(layers.map((l) => l.clone()));
     copy.sounds.addAll(sounds.map((s) => s.clone()));
     return copy;

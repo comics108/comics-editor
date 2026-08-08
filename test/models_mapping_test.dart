@@ -451,4 +451,86 @@ void main() {
     expect(mergedLayer['solidColor'], '#123456');
     expect(mergedLayer['mask'], isNotNull);
   });
+
+  // tdd-dot-lottie-import-export, Plan Task 1.2/1.4: groupId/textRegion are
+  // new additive layer fields, same omit-if-absent pattern as kind/style/
+  // parentId/solidColor/mask.
+  test('groupId read from raw JSON into EditorLayer', () {
+    final raw = _rawDoc([
+      {'images': <dynamic>[], 'animations': <dynamic>[], 'groupId': 'group-1'},
+    ]);
+    final document = comicsFromCore(raw, '/tmp/doc.comics');
+    expect(document.doc.layers.single.groupId, 'group-1');
+  });
+
+  test('legacy layer without groupId/textRegion stays absent both ways', () {
+    final raw = _rawDoc([
+      {'images': <dynamic>[], 'animations': <dynamic>[]},
+    ]);
+    final document = comicsFromCore(raw, '/tmp/doc.comics');
+    expect(document.doc.layers.single.groupId, isNull);
+    expect(document.doc.layers.single.textRegion, isNull);
+
+    final mergedLayers = comicsToCore(document)['layers'] as List;
+    final mergedLayer = mergedLayers.single as Map<String, dynamic>;
+    expect(mergedLayer.containsKey('groupId'), isFalse);
+    expect(mergedLayer.containsKey('textRegion'), isFalse);
+  });
+
+  test('setting groupId on the UI layer merges back into raw JSON', () {
+    final raw = _rawDoc([
+      {'images': <dynamic>[], 'animations': <dynamic>[]},
+    ]);
+    final document = comicsFromCore(raw, '/tmp/doc.comics');
+    document.doc.layers.single.groupId = 'group-2';
+
+    final mergedLayers = comicsToCore(document)['layers'] as List;
+    final mergedLayer = mergedLayers.single as Map<String, dynamic>;
+    expect(mergedLayer['groupId'], 'group-2');
+  });
+
+  test('rect textRegion reads/writes through raw JSON, including isHandLettered', () {
+    final raw = _rawDoc([
+      {
+        'images': <dynamic>[],
+        'animations': <dynamic>[],
+        'textRegion': {
+          'shape': 'rect',
+          'rect': {'x': 5.0, 'y': 10.0, 'w': 40.0, 'h': 20.0},
+          'isHandLettered': true,
+        },
+      },
+    ]);
+    final document = comicsFromCore(raw, '/tmp/doc.comics');
+    final region = document.doc.layers.single.textRegion!;
+    expect(region.shape, 'rect');
+    expect(region.rect, const Rect.fromLTWH(5, 10, 40, 20));
+    expect(region.isHandLettered, isTrue);
+
+    final mergedLayers = comicsToCore(document)['layers'] as List;
+    final mergedRegion = (mergedLayers.single as Map)['textRegion'] as Map;
+    expect(mergedRegion['shape'], 'rect');
+    expect(mergedRegion['isHandLettered'], true);
+  });
+
+  // tdd-dot-lottie-import-export, Plan Task 1.6: preferredViewportWidth/
+  // Height are new doc-level fields (per tdd-dot-comics-format's decision),
+  // always-present once assigned, absent -> 720x1600.
+  test('legacy doc without preferredViewportWidth/Height defaults to 720x1600', () {
+    final raw = _rawDoc([]);
+    final document = comicsFromCore(raw, '/tmp/doc.comics');
+    expect(document.doc.preferredViewportWidth, 720);
+    expect(document.doc.preferredViewportHeight, 1600);
+  });
+
+  test('preferredViewportWidth/Height round-trip through comicsToCore', () {
+    final raw = _rawDoc([]);
+    final document = comicsFromCore(raw, '/tmp/doc.comics');
+    document.doc.preferredViewportWidth = 1080;
+    document.doc.preferredViewportHeight = 1920;
+
+    final merged = comicsToCore(document);
+    expect(merged['preferredViewportWidth'], 1080);
+    expect(merged['preferredViewportHeight'], 1920);
+  });
 }

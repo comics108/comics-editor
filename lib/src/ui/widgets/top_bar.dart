@@ -9,6 +9,7 @@ import '../responsive.dart';
 import '../theme.dart';
 import 'common.dart';
 import 'dialogs.dart';
+import 'lottie_import_dialog.dart';
 
 /// App brand mark — the comics-editor smiley/speech-bubble glyph from
 /// design/comics-editor-logo/app-icon.svg (not the HolySpots pin, which is
@@ -202,6 +203,35 @@ class TopBar extends StatelessWidget {
               size: ff.iconBtn,
               onTap: () => _export(context),
             ),
+            // tdd-dot-lottie-import-export Plan Task 6.1: a dedicated
+            // .lottie import/export entry point -- explicitly not a
+            // repurposing of the icon above, which is the existing
+            // .comics/.puzzle Export/Save As mechanism.
+            const SizedBox(width: 8),
+            PopupMenuButton<void>(
+              tooltip: 'Lottie import/export',
+              itemBuilder: (_) => [
+                PopupMenuItem<void>(
+                  onTap: () => showLottieImportDialog(context),
+                  child: const Text('Import from .lottie…'),
+                ),
+                PopupMenuItem<void>(
+                  enabled: c.doc != null,
+                  onTap: () => showLottieExportDialog(context),
+                  child: const Text('Export to .lottie…'),
+                ),
+              ],
+              child: Container(
+                width: ff.iconBtn,
+                height: ff.iconBtn,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Hs.cloud200),
+                  borderRadius: BorderRadius.circular(Hs.rChip),
+                ),
+                child: const Icon(Icons.movie_creation_outlined, color: Hs.primary, size: 17),
+              ),
+            ),
             // sdd-comics-editor-v2.9-fixes2: Undo/Redo (Ctrl+Z/Ctrl+Shift+Z также
             // работают — см. Shortcuts/Actions в editor_screen.dart).
             const SizedBox(width: 8),
@@ -240,6 +270,15 @@ class TopBar extends StatelessWidget {
                 PopupMenuItem<void>(
                   onTap: () => _export(context),
                   child: const Text('Export'),
+                ),
+                PopupMenuItem<void>(
+                  onTap: () => showLottieImportDialog(context),
+                  child: const Text('Import from .lottie…'),
+                ),
+                PopupMenuItem<void>(
+                  enabled: c.doc != null,
+                  onTap: () => showLottieExportDialog(context),
+                  child: const Text('Export to .lottie…'),
                 ),
                 PopupMenuItem<void>(
                   enabled: c.canUndo,

@@ -151,14 +151,35 @@ platform :macos do
     # исправлено при переходе с match, sdd-comics-editor-publish 2026-07-31).
     sh("cp macos_appstore.provisionprofile #{File.join(app_path, 'Contents/embedded.provisionprofile').shellescape}")
 
-    # Шаг 4 — реальная подпись всего .app (включая только что встроенное ядро и
-    # profile) только что импортированной identity. Ищем по стабильному
-    # Apple-префиксу, а не по team name (не хардкодим конкретное имя компании).
     app_identity = sh("security find-identity -v -p codesigning | " \
       "grep '3rd Party Mac Developer Application' | head -1 | " \
       "awk -F'\"' '{print $2}'", log: false).strip
     UI.user_error!("No '3rd Party Mac Developer Application' identity found in keychain " \
       "-- did MACOS_CERT_APP_P12_BASE64 import correctly?") if app_identity.empty?
+
+    # Шаг 3.5 — подписать САМ headless-бинарник его собственными entitlements
+    # (../Runner/HeadlessCore.entitlements). Найдено реальным прогоном
+    # (sdd-comics-editor-publish, 2026-08-07, `xcodebuild -exportArchive
+    # destination:upload` локально): Apple's App Store Connect validator проверяет
+    # КАЖДЫЙ Mach-O executable в бандле по отдельности — "App sandbox not enabled"
+    # (code 90296) для Contents/Resources/comics-core/Comics.Editor, даже когда сам
+    # .app полностью подписан и sandboxed. `com.apple.security.inherit` в одиночку
+    # НЕ проходит — валидатор буквально требует ключ `com.apple.security.app-sandbox`
+    # = true. Рабочая комбинация (подтверждена реальной успешной загрузкой): ОБА
+    # ключа вместе — app-sandbox=true (проходит валидатор) + inherit=true (процесс
+    # реально работает в одном sandbox-контейнере с родителем, не в отдельном
+    # изолированном, иначе сломался бы доступ к файлам). Порядок важен: подписать
+    # ядро ДО финального `--deep`-подписания всего .app (шаг 4) — `--deep` не
+    # трогает голые executable-файлы в Resources/ (не Framework/.bundle), так что
+    # порядок "ядро сначала" не переписывается, но обратный порядок сломал бы seal
+    # ресурсов внешнего .app (CodeResources хранит хэш на момент подписи).
+    sh("codesign --force --sign #{app_identity.shellescape} " \
+       "--entitlements ../Runner/HeadlessCore.entitlements " \
+       "#{File.join(core_dir, 'Comics.Editor').shellescape}")
+
+    # Шаг 4 — реальная подпись всего .app (включая только что встроенное ядро и
+    # profile) той же identity. Ищем по стабильному Apple-префиксу, а не по team
+    # name (не хардкодим конкретное имя компании).
     sh("codesign --force --deep --sign #{app_identity.shellescape} #{app_path.shellescape}")
 
     # Шаг 5 — .pkg для App Store Connect, отдельной installer-identity.

@@ -134,6 +134,56 @@ Map<String, dynamic> _maskToJson(LayerMask mask) {
   return json;
 }
 
+// tdd-dot-lottie-import-export Plan Task 1.4: same shape union as
+// LayerMask, plus isHandLettered -- deliberately separate functions (not a
+// shared helper) since TextRegion and LayerMask are different concepts
+// that happen to reuse the same shape vocabulary, per 03-specifications.md.
+TextRegion? _textRegionFromJson(dynamic value) {
+  if (value is! Map) return null;
+  final shape = value['shape'] as String?;
+  if (shape == null) return null;
+  Rect? rect;
+  final rectJson = value['rect'] as Map?;
+  if (rectJson != null) {
+    rect = Rect.fromLTWH(
+      _asDouble(rectJson['x']),
+      _asDouble(rectJson['y']),
+      _asDouble(rectJson['w']),
+      _asDouble(rectJson['h']),
+    );
+  }
+  List<Offset>? points;
+  final pointsJson = value['points'] as List?;
+  if (pointsJson != null) {
+    points = [
+      for (final p in pointsJson)
+        Offset(_asDouble((p as Map)['x']), _asDouble(p['y'])),
+    ];
+  }
+  return TextRegion(
+    shape: shape,
+    rect: rect,
+    points: points,
+    maskFile: value['maskFile'] as String?,
+    isHandLettered: value['isHandLettered'] as bool?,
+  );
+}
+
+Map<String, dynamic> _textRegionToJson(TextRegion region) {
+  final json = <String, dynamic>{'shape': region.shape};
+  final rect = region.rect;
+  if (rect != null) {
+    json['rect'] = {'x': rect.left, 'y': rect.top, 'w': rect.width, 'h': rect.height};
+  }
+  final points = region.points;
+  if (points != null) {
+    json['points'] = [for (final p in points) {'x': p.dx, 'y': p.dy}];
+  }
+  if (region.maskFile != null) json['maskFile'] = region.maskFile;
+  if (region.isHandLettered != null) json['isHandLettered'] = region.isHandLettered;
+  return json;
+}
+
 Anim _animFromJson(Map<String, dynamic> json, {AnimType fallback = AnimType.translate}) {
   final type = _animTypeFromDollarType(json[r'$type'] as String?) ?? fallback;
   final anim = Anim(type,
@@ -239,7 +289,9 @@ CoreDocument comicsFromCore(Map<String, dynamic> raw, String path, {String? temp
     height: _asInt(raw['height'], 2160),
   )
     ..scrollType = _asScrollType(raw['scrollType'])
-    ..preferredOrientation = _asPreferredOrientation(raw['preferredOrientation']);
+    ..preferredOrientation = _asPreferredOrientation(raw['preferredOrientation'])
+    ..preferredViewportWidth = _asInt(raw['preferredViewportWidth'], 720)
+    ..preferredViewportHeight = _asInt(raw['preferredViewportHeight'], 1600);
 
   for (final layerJson in (raw['layers'] as List? ?? const [])) {
     final layer = layerJson as Map<String, dynamic>;
@@ -254,7 +306,9 @@ CoreDocument comicsFromCore(Map<String, dynamic> raw, String path, {String? temp
       ..style = layer['style'] as String?
       ..parentId = layer['parentId'] as String?
       ..solidColor = layer['solidColor'] as String?
-      ..mask = _maskFromJson(layer['mask']);
+      ..mask = _maskFromJson(layer['mask'])
+      ..groupId = layer['groupId'] as String?
+      ..textRegion = _textRegionFromJson(layer['textRegion']);
     final translations = layer['translations'] as Map?;
     if (translations != null) {
       translations.forEach((key, value) {
@@ -358,6 +412,8 @@ Map<String, dynamic> comicsToCore(CoreDocument document) {
   // the omit-if-default pattern used for kind/style/parentId.
   raw['scrollType'] = _scrollTypeToJson(doc.scrollType);
   raw['preferredOrientation'] = _preferredOrientationToJson(doc.preferredOrientation);
+  raw['preferredViewportWidth'] = doc.preferredViewportWidth;
+  raw['preferredViewportHeight'] = doc.preferredViewportHeight;
 
   final rawLayers = (document.raw['layers'] as List? ?? const []);
   raw['layers'] = [
@@ -423,6 +479,17 @@ Map<String, dynamic> _mergeLayer(EditorLayer layer, Map<String, dynamic> raw) {
     raw['mask'] = _maskToJson(mask);
   } else {
     raw.remove('mask');
+  }
+  if (layer.groupId != null && layer.groupId!.isNotEmpty) {
+    raw['groupId'] = layer.groupId;
+  } else {
+    raw.remove('groupId');
+  }
+  final textRegion = layer.textRegion;
+  if (textRegion != null) {
+    raw['textRegion'] = _textRegionToJson(textRegion);
+  } else {
+    raw.remove('textRegion');
   }
   if (layer.translations.isNotEmpty) {
     raw['translations'] = Map<String, String>.from(layer.translations);

@@ -21,11 +21,14 @@ import '../ai/stub_cutting_client.dart';
 import '../bridge/comics_core.dart';
 import '../bridge/documents.dart';
 import '../bridge/models_mapping.dart';
+import '../bridge/lottie_mapping.dart';
 import '../i18n/language_registry.dart';
 import '../io/tile_writer.dart';
 import 'audio/sound_player.dart';
 import 'device_profile.dart';
 import 'edit_history.dart';
+import 'lottie/lottie_export.dart';
+import 'lottie/lottie_import.dart';
 import 'models.dart';
 
 /// Which element type is selected in the right-hand Properties pane.
@@ -471,6 +474,16 @@ class EditorController extends ChangeNotifier {
   }
 
   bool get coreAvailable => core.isAvailable;
+
+  /// tdd-dot-lottie-import-export Plan Task 6.2: non-null exactly while the
+  /// review dialog is open. Building this is pure (`ImportPreview.build`
+  /// has no side effects), so simply discarding it (see [cancelLottieImport])
+  /// is a true no-op -- Test A4.
+  ImportPreview? lottiePreview;
+
+  /// Set only when [pickLottieToImport] fails to parse the picked file
+  /// (Test F1) -- shown by the review dialog in place of the preview.
+  String? lottieImportError;
 
   // vdd-comics-editor-uiux-lettering: dynamic language list (Task 1.4),
   // loaded once and cached -- backs Images[] slot resolution beyond en/ru/hi
@@ -1151,6 +1164,177 @@ class EditorController extends ChangeNotifier {
     if (bytes == null) return false;
     await setImagePopup(langCode, bytes);
     return true;
+  }
+
+  // ---------- .lottie import/export (tdd-dot-lottie-import-export) ----------
+
+  /// Plan Task 6.1/6.2: picks a `.lottie` file and builds its [ImportPreview]
+  /// (mode auto-detected, per Task 3.1) -- pure, no `.comics` mutation yet.
+  /// The caller (the review dialog) shows [lottiePreview] and eventually
+  /// calls [commitLottieImport] or [cancelLottieImport]. Returns `false` on
+  /// cancel (not an error, per this app's own established convention) or on
+  /// a parse failure (Test F1) -- [lottieImportError] carries the message
+  /// for the latter so the dialog can show it instead of a preview.
+  Future<bool> pickLottieToImport() async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['lottie'],
+      withData: true,
+    );
+    final bytes = result?.files.single.bytes;
+    if (bytes == null) return false; // отмена — не ошибка
+    lottieImportError = null;
+    try {
+      final document = parseLottieDocument(bytes);
+      lottiePreview = ImportPreview.build(document, detectMode(document));
+    } on LottieFormatException catch (e) {
+      lottieImportError = e.toString();
+      lottiePreview = null;
+    }
+    notifyListeners();
+    return true;
+  }
+
+  /// Task 6.3 (mode override): rebuilds [lottiePreview] under [mode] instead
+  /// of the auto-detected one -- classification itself is mode-dependent
+  /// (`ImportPreview.build`'s own two branches), so this can't just flip a
+  /// flag on the existing preview. A fresh `scrollSpeed` re-derives for
+  /// playbackViewport; any user edit to it from before the override is
+  /// intentionally not preserved, since a mode change invalidates it anyway
+  /// (Full Canvas has no such field at all).
+  void setLottieImportMode(ExportImportMode mode) {
+    final preview = lottiePreview;
+    if (preview == null || preview.mode == mode) return;
+    lottiePreview = ImportPreview.build(preview.document, mode)..easing = preview.easing;
+    notifyListeners();
+  }
+
+  void setLottieScrollSpeed(double speed) {
+    lottiePreview?.scrollSpeed = speed;
+    notifyListeners();
+  }
+
+  void setLottieEasingChoice(EasingChoice easing) {
+    final preview = lottiePreview;
+    if (preview == null) return;
+    preview.easing = easing;
+    notifyListeners();
+  }
+
+  /// Test A4: cancel is a true no-op -- [lottiePreview] is discarded before
+  /// any `.comics` mutation has happened (`ImportPreview.build` is pure), so
+  /// there is nothing to roll back.
+  void cancelLottieImport() {
+    lottiePreview = null;
+    lottieImportError = null;
+    notifyListeners();
+  }
+
+  /// Plan Task 4.1/4.2 (`commitImport`) + Task 6.4 (real image-byte
+  /// extraction), wired together at the one level that has both a real
+  /// `ComicsDoc` to mutate and (when available) a real `CoreDocument
+  /// .tempFolder` to write tiles into. One history transaction for the
+  /// whole import, so a single Undo reverts every layer it added.
+  ///
+  /// **Real, disclosed scope boundary** (same one `commitImport`'s own doc
+  /// comment flags): without a `tempFolder` (e.g. importing into a brand
+  /// new, never-saved document -- this app has no `newComics` core call, so
+  /// [newDoc] never gets one either, an existing limitation every other
+  /// tile-writing feature already shares, not new here), every imported
+  /// layer keeps its placeholder image, matching `commitImport`'s own
+  /// documented fallback. When a `tempFolder` *is* available, only clean
+  /// image layers whose source asset is a base64 data URI get real pixels --
+  /// every real `.lottie` file found embeds images this way (confirmed in
+  /// Phase 2); the external-file-reference branch has no real content to
+  /// exercise and is skipped (that layer keeps its placeholder), not guessed
+  /// at with unread bytes.
+  Future<bool> commitLottieImport() async {
+    final preview = lottiePreview;
+    final document = doc;
+    if (preview == null || document == null) return false;
+
+    _beginHistory();
+    final startIndex = document.layers.length;
+    commitImport(preview, document);
+
+    final tempFolder = coreDoc?.tempFolder;
+    if (tempFolder != null) {
+      final cleanPreviews =
+          preview.layers.where((l) => l.status == LayerPreviewStatus.clean).toList();
+      final createdLayers = document.layers.sublist(startIndex);
+      final assetsById = {for (final a in preview.document.assets) a.id: a};
+      final layersDir = '$tempFolder/layers';
+      for (var i = 0; i < createdLayers.length; i++) {
+        final asset = assetsById[cleanPreviews[i].sourceLayer.refId];
+        final bytes = _decodeDataUri(asset?.imagePath);
+        if (bytes == null) continue;
+        final tiled = await writeTiles(
+          bytes: bytes,
+          layersDir: layersDir,
+          name: sanitizeStem(createdLayers[i].name),
+        );
+        createdLayers[i].images[0].file = tiled.fileTemplate;
+      }
+    }
+    _commitHistory();
+
+    lottiePreview = null;
+    _clearSelection();
+    notifyListeners();
+    return true;
+  }
+
+  /// `null` for anything that isn't a `data:...;base64,<payload>` URI --
+  /// covers both "no source asset found" and the disclosed external-file
+  /// gap above.
+  Uint8List? _decodeDataUri(String? imagePath) {
+    if (imagePath == null || !imagePath.startsWith('data:')) return null;
+    final commaIndex = imagePath.indexOf(',');
+    if (commaIndex < 0) return null;
+    try {
+      return base64.decode(imagePath.substring(commaIndex + 1));
+    } on FormatException {
+      return null;
+    }
+  }
+
+  /// Plan Task 6.1: the "easy direction" (per `lottie_export.dart`'s own
+  /// doc comment) -- deterministic, no review screen. [mode] isn't
+  /// auto-detected on export the way import's is (there's no analogous
+  /// real-file signal to detect from a `ComicsDoc`); the caller (the export
+  /// dialog) asks the user directly, defaulting to Full Canvas as the
+  /// always-unambiguous choice.
+  Future<bool> exportLottieWithDialog(
+    ExportImportMode mode, {
+    double? scrollSpeed,
+  }) async {
+    final document = doc;
+    if (document == null) return false;
+    try {
+      final lottieDoc = buildLottieExport(
+        document,
+        mode,
+        scrollSpeed: scrollSpeed,
+        easing: EasingChoice.easyEaseApproximation,
+      );
+      final bytes = writeLottieDocument(lottieDoc, assetFiles: const []);
+      final fileName =
+          '${sanitizeStem(document.name.isEmpty ? 'untitled' : document.name)}.lottie';
+      // `saveFile` writes `bytes` itself once the user picks a destination
+      // (confirmed across every desktop platform implementation, and
+      // required on mobile) -- no separate manual write needed here.
+      final path = await FilePicker.saveFile(
+        fileName: fileName,
+        type: FileType.custom,
+        allowedExtensions: const ['lottie'],
+        bytes: bytes,
+      );
+      return path != null;
+    } on Exception catch (e) {
+      coreError = e.toString();
+      notifyListeners();
+      return false;
+    }
   }
 
   // ---------- cutting (vdd-comics-editor-ai-uiux) ----------

@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "qlukhFbXkt4=",
+  "dgSpecHash": "dENdsguwPaM=",
   "success": true,
-  "projectFilePath": "/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Editor.Headless/Comics.Editor.Headless.csproj",
+  "projectFilePath": "/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor/native/Comics.Editor.Headless/Comics.Editor.Headless.csproj",
   "expectedPackageFiles": [
     "/Users/anton/.nuget/packages/log4net/2.0.8/log4net.2.0.8.nupkg.sha512",
     "/Users/anton/.nuget/packages/microsoft.net.illink.tasks/10.0.10/microsoft.net.illink.tasks.10.0.10.nupkg.sha512",
@@ -15,9 +15,9 @@
       "code": "NU1904",
       "level": "Warning",
       "message": "Package 'log4net' 2.0.8 has a known critical severity vulnerability, https://github.com/advisories/GHSA-2cwj-8chv-9pp9",
-      "projectPath": "/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Editor.Headless/Comics.Editor.Headless.csproj",
+      "projectPath": "/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor/native/Comics.Editor.Headless/Comics.Editor.Headless.csproj",
       "warningLevel": 1,
-      "filePath": "/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Editor.Headless/Comics.Editor.Headless.csproj",
+      "filePath": "/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor/native/Comics.Editor.Headless/Comics.Editor.Headless.csproj",
       "libraryId": "log4net",
       "targetGraphs": [
         "net10.0",
@@ -28,9 +28,9 @@
       "code": "NU1902",
       "level": "Warning",
       "message": "Package 'log4net' 2.0.8 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-4f7c-pmjv-c25w",
-      "projectPath": "/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Editor.Headless/Comics.Editor.Headless.csproj",
+      "projectPath": "/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor/native/Comics.Editor.Headless/Comics.Editor.Headless.csproj",
       "warningLevel": 1,
-      "filePath": "/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Editor.Headless/Comics.Editor.Headless.csproj",
+      "filePath": "/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor/native/Comics.Editor.Headless/Comics.Editor.Headless.csproj",
       "libraryId": "log4net",
       "targetGraphs": [
         "net10.0",

@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Editor.Headless/Comics.Editor.Headless.csproj": {}
+    "/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor/native/Comics.Editor.Headless/Comics.Editor.Headless.csproj": {}
   },
   "projects": {
-    "/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Editor.Headless/Comics.Editor.Headless.csproj": {
+    "/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor/native/Comics.Editor.Headless/Comics.Editor.Headless.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Editor.Headless/Comics.Editor.Headless.csproj",
+        "projectUniqueName": "/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor/native/Comics.Editor.Headless/Comics.Editor.Headless.csproj",
         "projectName": "Comics.Editor",
-        "projectPath": "/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Editor.Headless/Comics.Editor.Headless.csproj",
+        "projectPath": "/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor/native/Comics.Editor.Headless/Comics.Editor.Headless.csproj",
         "packagesPath": "/Users/anton/.nuget/packages/",
-        "outputPath": "/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor-v2.9/native/Comics.Editor.Headless/obj/",
+        "outputPath": "/Users/anton/proj/nativemind.net/comics.nativemind.net/apps/comics-editor/native/Comics.Editor.Headless/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "/Users/anton/.nuget/NuGet/NuGet.Config"

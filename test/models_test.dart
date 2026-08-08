@@ -94,4 +94,47 @@ void main() {
     expect(clone.basis, AnimBasis.time);
     expect(clone.loop, isFalse);
   });
+
+  // tdd-dot-lottie-import-export, Plan Task 1.1/1.3: groupId/textRegion
+  // default to unset (today's exact behavior) and survive clone()
+  // independently.
+  test('a new EditorLayer has no groupId/textRegion by default', () {
+    final layer = EditorLayer('layer');
+    expect(layer.groupId, isNull);
+    expect(layer.textRegion, isNull);
+  });
+
+  test('clone() preserves groupId and deep-copies textRegion', () {
+    final original = EditorLayer('layer')
+      ..groupId = 'group-1'
+      ..textRegion = TextRegion(
+        shape: 'rect',
+        rect: const Rect.fromLTWH(0, 0, 40, 20),
+        isHandLettered: true,
+      );
+    final clone = original.clone();
+
+    expect(clone.groupId, 'group-1');
+    expect(clone.textRegion!.shape, 'rect');
+    expect(clone.textRegion!.rect, const Rect.fromLTWH(0, 0, 40, 20));
+    expect(clone.textRegion!.isHandLettered, isTrue);
+    expect(clone.textRegion, isNot(same(original.textRegion))); // deep copy
+  });
+
+  // tdd-dot-lottie-import-export, Plan Task 1.5: default 720x1600 matches
+  // the real value found in samples/sample_playback_viewport.lottie_unzip.
+  test('a new ComicsDoc defaults to a 720x1600 preferred viewport size', () {
+    final doc = ComicsDoc(name: 'doc', type: DocType.comics);
+    expect(doc.preferredViewportWidth, 720);
+    expect(doc.preferredViewportHeight, 1600);
+  });
+
+  test('ComicsDoc.clone() preserves preferredViewportWidth/Height', () {
+    final doc = ComicsDoc(name: 'doc', type: DocType.comics)
+      ..preferredViewportWidth = 1080
+      ..preferredViewportHeight = 1920;
+    final clone = doc.clone();
+    expect(clone.preferredViewportWidth, 1080);
+    expect(clone.preferredViewportHeight, 1920);
+  });
 }
